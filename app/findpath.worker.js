@@ -77,8 +77,8 @@ async function handleCalculateRoute(action) {
   const graph = STATE.graph;
   const links = STATE.links;
 
-  const start = graph.graph[from];
-  const end = graph.graph[to];
+  const start = findGraphNode(graph, from);
+  const end = findGraphNode(graph, to);
 
   if (!start || !end) {
     dispatch(action, {status: 400, statusText: "\"From\" or \"To\" not found, please check spelling."});
@@ -101,6 +101,24 @@ async function handleCalculateRoute(action) {
 
   const result = path ? {body: {path, plan}} : {status: 404, statusText: "No path found"};
   dispatch(action, result)
+}
+
+/**
+ * Finds a graph node by its name.
+ *
+ * Attempts to return an exact match from the graph dictionary first.
+ * If no exact match is found, it falls back to a partial match by checking
+ * if any node's name starts with the given `graphNodeName`.
+ *
+ * @param {Graph} graph - The graph object containing nodes.
+ * @param {Object<string, {name: string}>|Array<{name: string}>} graph.graph -
+ *        A dictionary (keyed by node name) or an array of node objects.
+ * @param {string} graphNodeName - The node name (or prefix) to search for.
+ * @returns {{name: string}|undefined} The matching node object, or undefined if not found.
+ */
+function findGraphNode(graph, graphNodeName) {
+  return graph.graph[graphNodeName]
+      ?? Object.values(graph.graph).find(n => n.name.toLowerCase().startsWith(graphNodeName.toLowerCase()));
 }
 
 /**
@@ -148,7 +166,7 @@ function computeDistance(node1, node2, order = 'lonlat') {
 }
 
 /**
- * @param {InlineGraph} graph
+ * @param {Graph} graph
  * @param {GraphNode} node
  * @return {[string, GraphNode[]]}
  */

@@ -146,7 +146,7 @@ function render(state) {
     <form method="get" action="./">
       <label class="form-control">From: <input class="input" list="locators" name="from" value="${from}" required/></label>
       <label class="form-control">To: <input class="input" list="locators" name="to" value="${to}" required/></label>
-      <datalist id="locators">${locators?.locators.map(l => `<option value="${l.value}">${l.name}</option>`).join("")}</datalist>
+      <datalist id="locators">${locators?.locators.map(l => `<option>${l.name}</option>`).join("")}</datalist>
 
       <input class="button" type="submit" value="Bereken route"/>
     </form>
