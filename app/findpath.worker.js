@@ -62,7 +62,10 @@ async function handleFetch(action) {
   const links = JSON.parse(linksContents)
 
   const locatorsContents = await fetchFile(locatorsSrc)
-  const locators = JSON.parse(locatorsContents)
+  const _locators = JSON.parse(locatorsContents)
+
+  // FIXME: Should be pre-sorted.
+  const locators = {..._locators, locators: _locators.locators.sort((a, b) => a.name.localeCompare(b.name))}
 
   setState({graph, links, locators})
   dispatch(action, {body: {locators}})
