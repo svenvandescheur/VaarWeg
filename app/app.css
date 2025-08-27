@@ -21,8 +21,9 @@ body {
 }
 
 #sidebar {
-    box-sizing: border-box;
-    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    max-height: 100cqh;
 }
 
 .form {
@@ -45,6 +46,10 @@ body {
     color: #FFF;
     margin: 0;
     padding: 0 1rem;
+}
+
+.plan {
+    overflow: auto;
 }
 
 #map {

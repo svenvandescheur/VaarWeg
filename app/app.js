@@ -152,7 +152,7 @@ function render(state) {
     </form>
 
     ${plan ? `
-    <section>
+    <section class="plan">
       <ul>${plan.map(l => `<li>${l}</li>`).join("")}</ul>
     </section>
     ` : ''}
