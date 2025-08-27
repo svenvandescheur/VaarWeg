@@ -46,7 +46,7 @@ export function createReactiveApp(name, render, initialState = {}, workerPath = 
  * Merges changes into the state store and triggers a render.
  *
  * @param {Object} changes - Partial state updates to merge into the store.
- * @param {Function} render - Function to render the complete updated state.
+ * @param {Function} [render] - Function to render the complete updated state.
  */
 function _setState(changes, render) {
   STATE = Object.freeze({...STATE, ...changes})

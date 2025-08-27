@@ -1,8 +1,7 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 import {findPath} from "./lib/findpath.module.js";
 
-const {setState, dispatch, worker} = createReactiveApp("findpath.worker");
-
+const {setState, dispatch} = createReactiveApp("findpath.worker");
 
 /**
  * Worker message handler.
@@ -10,7 +9,6 @@ const {setState, dispatch, worker} = createReactiveApp("findpath.worker");
  */
 onmessage = async ({data}) => {
   setState({action: data})
-
 
   /** @type {Action} */
   const action = data
@@ -32,7 +30,6 @@ onmessage = async ({data}) => {
     throw (e);
   }
 };
-
 
 /**
  * Fetches file from path.
@@ -91,7 +88,7 @@ async function handleCalculateRoute(action) {
   const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph, links))
 
   // TOOD: Type.
-  const plan = path?.reduce((acc, {link}) => {
+  const plan = path ? path.reduce((acc, {link}) => {
     if (!link) return acc;
 
     const lastLinkName = acc.slice(-1)[0];
@@ -99,7 +96,7 @@ async function handleCalculateRoute(action) {
 
     if (lastLinkName === linkName) return acc;
     return [...acc, linkName]
-  }, [])
+  }, []) : []
 
 
   const result = path ? {body: {path, plan}} : {status: 404, statusText: "No path found"};
@@ -149,7 +146,6 @@ function computeDistance(node1, node2, order = 'lonlat') {
 
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-
 
 /**
  * @param {InlineGraph} graph

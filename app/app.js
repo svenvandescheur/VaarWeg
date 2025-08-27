@@ -1,7 +1,7 @@
 // @ts-check
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 
-const {setState, dispatch, worker} = createReactiveApp("app", render, {
+const {setState, dispatch} = createReactiveApp("app", render, {
   title: "Boot Routeplanner",
   status: 102,
   statusText: "Loading",
@@ -36,7 +36,8 @@ async function onMessage({data}) {
         break;
     }
   } catch (e) {
-    dispatch(action, {status: 500, statusText: e.message, body: e})
+    console.error(e)
+    setState({status: 500, statusText: e.message, body: e});
   }
 }
 
@@ -87,7 +88,6 @@ async function dispatchCalculateRoute(from, to) {
   dispatch(action)
 }
 
-
 /**
  * Process Worker response.
  * @param {Action} action
@@ -96,11 +96,10 @@ function handleCalculateRouteResponse(action) {
   setState({
     status: action.result.status,
     statusText: action.result.statusText,
-    path: action.result.body.path,
-    plan: action.result.body.plan,
+    path: action.result.body?.path,
+    plan: action.result.body?.plan,
   })
 }
-
 
 /**
  * Renders state into a string.
@@ -110,8 +109,8 @@ function render(state) {
   const sidebar = document.getElementById("sidebar");
   const {locators, map, path, plan, status, statusText, title} = state;
   const searchParams = new URL(window.location).searchParams;
-  const from = searchParams.get("from")
-  const to = searchParams.get("to");
+  const from = searchParams.get("from") || ""
+  const to = searchParams.get("to") || "";
 
   // Leaflet
   map?.eachLayer(layer => {
@@ -157,8 +156,6 @@ function render(state) {
       <ul>${plan.map(l => `<li>${l}</li>`).join("")}</ul>
     </section>
     ` : ''}
-</section>
-
   `;
 }
 
@@ -188,7 +185,6 @@ function initToolbar() {
     history.pushState(state, '', `?${params}`)
 
     setTimeout(() => {
-      // setState({from, to})
       dispatchCalculateRoute(
         e.target.elements.from.value,
         e.target.elements.to.value,
