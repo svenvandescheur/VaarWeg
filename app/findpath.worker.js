@@ -90,15 +90,18 @@ async function handleCalculateRoute(action) {
 
   const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph, links))
 
-  // TOOD: Type.
-  const plan = path ? path.reduce((acc, {link}) => {
+  // TODO: Type.
+  const plan = path ? path.reduce((acc, {graphNode, link}) => {
     if (!link) return acc;
 
-    const lastLinkName = acc.slice(-1)[0];
+    const lastLinkName = acc.slice(-1)[0]?.name;
     const linkName = link.split("#")[0];
 
-    if (lastLinkName === linkName) return acc;
-    return [...acc, linkName]
+    if (lastLinkName === linkName) {
+      return acc;
+    }
+
+    return [...acc, {name: linkName, graphNodeName: graphNode.name}]
   }, []) : []
 
 

@@ -2,13 +2,14 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 
 const {setState, dispatch} = createReactiveApp("app", render, {
-  title: "Boot Routeplanner",
+  title: "VaarWeg",
   status: 102,
   statusText: "Loading",
   action: null,
   ready: false,
   path: [],
   plan: [],
+  activeGraphNodeName: null,
   map: null,
 }, "./findpath.worker.js", onMessage)
 
@@ -107,7 +108,7 @@ function handleCalculateRouteResponse(action) {
  */
 function render(state) {
   const sidebar = document.getElementById("sidebar");
-  const {locators, map, path, plan, status, statusText, title} = state;
+  const {locators, map, path, plan, activeGraphNodeName, status, statusText, title} = state;
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from") || ""
   const to = searchParams.get("to") || "";
@@ -120,6 +121,8 @@ function render(state) {
   });
 
   if (map && path?.length) {
+    const polylines = [];
+
     for (let i = 0; i <= path.length; i++) {
       const node = path[i];
       const nextNode = path[i + 1];
@@ -128,33 +131,53 @@ function render(state) {
       if (nextNode) {
         const sectionStart = node.graphNode.pos
         const sectionEnd = nextNode.graphNode.pos
-        const polyline = L.polyline([sectionStart, sectionEnd], {color: even ? 'blue' : 'blue', weight: 6}).addTo(map)
+        const polyline = L.polyline([sectionStart, sectionEnd], {
+          color: even ? 'cornflowerblue' : 'cornflowerblue',
+          weight: 6
+        }).addTo(map)
 
         polyline.bindPopup(node.link?.split("#")[0])
-        if (i === 0) map.fitBounds(polyline.getBounds())
+        polylines.push(polyline);
+
+        if (node.graphNode.name === activeGraphNodeName) {
+          map.fitBounds(polyline.getBounds())
+        }
       }
     }
+
+    const featureGroup = L.featureGroup(polylines);
+    if (activeGraphNodeName === null) map.fitBounds(featureGroup.getBounds())
+
   }
 
   // Regular DOM.
   sidebar.innerHTML = `
     <header>
-      <h1>${title}</h1>
-      <p>Status: ${statusText} (${status})</p>
+      <h1 class="logo">${title}</h1>
     </header>
 
-    <form method="get" action="./">
+    <form class="form" method="get" action="./">
       <label class="form-control">From: <input class="input" list="locators" name="from" value="${from}" required/></label>
       <label class="form-control">To: <input class="input" list="locators" name="to" value="${to}" required/></label>
       <datalist id="locators">${locators?.locators.map(l => `<option>${l.name}</option>`).join("")}</datalist>
 
-      <input class="button" type="submit" value="Bereken route"/>
+      <input class="button" type="submit" value="${status === 102 ? "Laden… 🍕" : "Bereken route"}"${status === 102 ? " disabled" : ""}/>
     </form>
 
     ${plan ? `
     <section class="plan">
-      <ul>${plan.map(l => `<li>${l}</li>`).join("")}</ul>
+      <ol class="plan__list">
+        ${plan.map(({name, graphNodeName}) => `
+        <li class="plan__list-item">
+          <button class="button button--link" id="plan-${graphNodeName}">${name}</button>
+        </li>`).join("")}
+      </ol>
     </section>
+
+    <footer class="statusbar">
+      <span>Status: ${statusText} (${status})</span>
+    </footer>
+</footer>
     ` : ''}
   `;
 }
@@ -174,7 +197,7 @@ function initMap() {
 /**
  * Sets up events for the toolbar, input values are synced to state.
  */
-function initToolbar() {
+function initEvents() {
   const handleSubmit = (e) => {
     e.preventDefault();
     const from = e.target.elements.from.value
@@ -192,7 +215,16 @@ function initToolbar() {
     })
   }
 
+  const handlePlanLinkClick = (e) => {
+    if (!e.target.parentElement.classList.contains('plan__list-item')) return
+    const id = e.target.id
+    const index = id.split('plan-')[1];
+
+    setState({activeGraphNodeName: index})
+  }
+
   document.addEventListener("submit", handleSubmit);
+  document.addEventListener("click", handlePlanLinkClick);
 }
 
 /**
@@ -203,7 +235,7 @@ function initToolbar() {
 async function main() {
   dispatchFetch("./assets/nl_graph.json", "./assets/nl_links.json", "./assets/nl_locators.json");
   initMap()
-  initToolbar();
+  initEvents();
 }
 
 document.addEventListener("DOMContentLoaded", main);
