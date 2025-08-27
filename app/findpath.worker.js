@@ -89,7 +89,20 @@ async function handleCalculateRoute(action) {
   }
 
   const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph, links))
-  const result = path ? {body: path} : {status: 404, statusText: "No path found"};
+
+  // TOOD: Type.
+  const plan = path?.reduce((acc, {link}) => {
+    if (!link) return acc;
+
+    const lastLinkName = acc.slice(-1)[0];
+    const linkName = link.split("#")[0];
+
+    if (lastLinkName === linkName) return acc;
+    return [...acc, linkName]
+  }, [])
+
+
+  const result = path ? {body: {path, plan}} : {status: 404, statusText: "No path found"};
   dispatch(action, result)
 }
 
@@ -164,8 +177,11 @@ function reconstructRenderablePath(graph, links, cameFrom, current) {
     const prevNode = graphNode
 
     graphNode = cameFrom[computeKey(graphNode)]
-    link = prevNode.neighbors.find(([_, graphNodeName]) => graph.graph[graphNodeName] === graphNode)?.[0]
+    link = graphNode && prevNode.neighbors
+      .find(([_, neighborName]) => computeKey(graph.graph[neighborName]) === computeKey(graphNode))?.[0]
   }
 
-  return path
+  return path.map(n => {
+    return {...n, graphNode: {...n.graphNode, pos: n.graphNode.pos.toReversed()}};
+  })
 }

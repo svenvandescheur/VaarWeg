@@ -8,6 +8,7 @@ const {setState, dispatch, worker} = createReactiveApp("app", render, {
   action: null,
   ready: false,
   path: [],
+  plan: [],
   map: null,
 }, "./findpath.worker.js", onMessage)
 
@@ -95,7 +96,8 @@ function handleCalculateRouteResponse(action) {
   setState({
     status: action.result.status,
     statusText: action.result.statusText,
-    path: action.result.body,
+    path: action.result.body.path,
+    plan: action.result.body.plan,
   })
 }
 
@@ -106,21 +108,10 @@ function handleCalculateRouteResponse(action) {
  */
 function render(state) {
   const sidebar = document.getElementById("sidebar");
-  const {locators, map, path, status, statusText, title} = state;
+  const {locators, map, path, plan, status, statusText, title} = state;
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from")
   const to = searchParams.get("to");
-
-  // TODO: Move to worker??
-  const plan = path?.reduce((acc, {link}) => {
-    if (!link) return acc;
-
-    const lastLinkName = acc.slice(-1)[0];
-    const linkName = link.split("#")[0];
-
-    if (lastLinkName === linkName) return acc;
-    return [...acc, linkName]
-  }, [])
 
   // Leaflet
   map?.eachLayer(layer => {
@@ -136,12 +127,11 @@ function render(state) {
       const even = i % 2 === 0;
 
       if (nextNode) {
-        const sectionStart = node.graphNode.pos.toReversed()
-        const sectionEnd = nextNode.graphNode.pos.toReversed()
+        const sectionStart = node.graphNode.pos
+        const sectionEnd = nextNode.graphNode.pos
         const polyline = L.polyline([sectionStart, sectionEnd], {color: even ? 'blue' : 'blue', weight: 6}).addTo(map)
 
-        // FIXME: This should not happen?
-        if (node.link) polyline.bindPopup(node.link?.split("#")[0])
+        polyline.bindPopup(node.link?.split("#")[0])
         if (i === 0) map.fitBounds(polyline.getBounds())
       }
     }
@@ -162,7 +152,7 @@ function render(state) {
       <input class="button" type="submit" value="Bereken route"/>
     </form>
 
-    ${plan ?  `
+    ${plan ? `
     <section>
       <ul>${plan.map(l => `<li>${l}</li>`).join("")}</ul>
     </section>
