@@ -1,0 +1,3 @@
+lxml
+ruff
+tqdm

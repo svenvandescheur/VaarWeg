@@ -1,0 +1,53 @@
+body {
+    margin: 0;
+}
+
+.split-pane {
+    container-name: 'split-pane';
+    container-type: normal;
+    display: flex;
+
+    > * {
+        position: relative;
+    }
+
+    > *:first-child {
+        width: 33%;
+    }
+
+    > *:last-child {
+        width: 67%;
+    }
+}
+
+#sidebar {
+    box-sizing: border-box;
+    padding: 1rem;
+}
+
+.form {
+    margin: 0;
+}
+
+.form-control, .input, .button {
+    font-family: Tahoma;
+    font-size: 12px;
+}
+
+.input, .button {
+    height: 1.5rem;
+}
+
+.button {
+    appearance: none;
+    background-color: cornflowerblue;
+    border: none;
+    color: #FFF;
+    margin: 0;
+    padding: 0 1rem;
+}
+
+#map {
+    width: 67cqw;
+    height: 100cqh;
+}
