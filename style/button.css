@@ -1,0 +1,26 @@
+.button {
+    appearance: none;
+    background-color: cornflowerblue;
+    border: none;
+    color: #FFF;
+    cursor: pointer;
+    margin: 0;
+    padding: 0 1rem;
+}
+
+.button--link {
+    background-color: transparent;
+    color: cornflowerblue;
+    display: inline;
+    font-size: inherit;
+    height: auto;
+    margin: unset;
+    padding: unset;
+    text-align: start;
+    text-decoration: underline;
+}
+
+.button[disabled] {
+    background-color: lightgray;
+    cursor: not-allowed;
+}
