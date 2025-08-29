@@ -58,33 +58,8 @@ body {
     width: 75%;
 }
 
-.button {
-    appearance: none;
-    background-color: cornflowerblue;
-    border: none;
-    color: #FFF;
-    cursor: pointer;
-    margin: 0;
-    padding: 0 1rem;
-    width: 8rem;
-}
-
-.button--link {
-    background-color: transparent;
-    color: cornflowerblue;
-    display: inline;
-    font-size: inherit;
-    height: auto;
-    margin: unset;
-    padding: unset;
-    text-align: start;
-    text-decoration: underline;
-    width: unset;
-}
-
-.button[disabled] {
-    background-color: lightgray;
-    cursor: not-allowed;
+.form .button {
+    width: 12rem;
 }
 
 .plan {

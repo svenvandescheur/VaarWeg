@@ -157,11 +157,11 @@ function render(state) {
     </header>
 
     <form class="form" method="get" action="./">
-      <label class="form-control">From: <input class="input" list="locators" name="from" value="${from}" required/></label>
-      <label class="form-control">To: <input class="input" list="locators" name="to" value="${to}" required/></label>
+      <label class="form-control">Van: <input class="input" list="locators" name="from" placeholder="🏠"value="${from}" required/></label>
+      <label class="form-control">Naar: <input class="input" list="locators" name="to" placeholder="🏁" value="${to}" required/></label>
       <datalist id="locators">${locators?.locators.map(l => `<option>${l.name}</option>`).join("")}</datalist>
 
-      <input class="button" type="submit" value="${status === 102 ? "Laden… 🍕" : "Bereken route"}"${status === 102 ? " disabled" : ""}/>
+      <input class="button" type="submit" value="${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}"${status === 102 ? " disabled" : ""}/>
     </form>
 
     ${plan ? `
