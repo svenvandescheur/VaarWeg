@@ -32,16 +32,6 @@ onmessage = async ({data}) => {
 };
 
 /**
- * Fetches file from path.
- * @param {string} path
- * @returns {Promise<string>}
- */
-async function fetchFile(path) {
-  const response = await fetch(path);
-  return await response.text();
-}
-
-/**
  * Process Worker response.
  * @param {Action} action
  */
@@ -55,20 +45,44 @@ async function handleFetch(action) {
   // From file.
   const {graphSrc, linksSrc, locatorsSrc} = action.payload;
 
-  const graphContents = await fetchFile(graphSrc)
-  const graph = JSON.parse(graphContents)
-
-  const linksContents = await fetchFile(linksSrc)
-  const links = JSON.parse(linksContents)
-
-  const locatorsContents = await fetchFile(locatorsSrc)
-  const _locators = JSON.parse(locatorsContents)
+  const graph = await loadData(graphSrc)
+  const links = await loadData(linksSrc)
+  const _locators = await loadData(locatorsSrc)
 
   // FIXME: Should be pre-sorted.
   const locators = {..._locators, locators: _locators.locators.sort((a, b) => a.name.localeCompare(b.name))}
 
   setState({graph, links, locators})
   dispatch(action, {body: {locators}})
+}
+
+/**
+ * Returns JSON parsed data for entry and possibly related chunks.
+ * @param {string} src
+ * @returns {Promise<Object>}
+ */
+async function loadData(src) {
+  const contents = await fetchFile(src)
+  const data = JSON.parse(contents);
+  if ("chunks" in data && "chunkTarget" in data && Array.isArray(data.chunks)) {
+    const path = src.split("/");
+    const filename = path.pop();
+    const promises = data.chunks.map(chunk => fetchFile(path.join("/") + "/" + chunk).then(text => JSON.parse(text)))
+    const chunks = await Promise.all(promises)
+    data[data.chunkTarget] = chunks.reduce((acc, val) => ({...acc, ...val}), {})
+    return data
+  }
+  return data
+}
+
+/**
+ * Fetches file from path.
+ * @param {string} path
+ * @returns {Promise<string>}
+ */
+async function fetchFile(path) {
+  const response = await fetch(path);
+  return await response.text();
 }
 
 /**
@@ -124,7 +138,7 @@ async function handleCalculateRoute(action) {
  */
 function findGraphNode(graph, graphNodeName) {
   return graph.graph[graphNodeName]
-      ?? Object.values(graph.graph).find(n => n.name.toLowerCase().startsWith(graphNodeName.toLowerCase()));
+    ?? Object.values(graph.graph).find(n => n.name.toLowerCase().startsWith(graphNodeName.toLowerCase()));
 }
 
 /**
