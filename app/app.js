@@ -2,6 +2,7 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 
 const {setState, dispatch} = createReactiveApp("app", render, {
+  dataWarningSeen: localStorage.getItem("VaarWeg.dataWarningSeen")?.toLowerCase() === "true",
   title: "VaarWeg",
   status: 102,
   statusText: "Loading",
@@ -108,7 +109,8 @@ function handleCalculateRouteResponse(action) {
  */
 function render(state) {
   const sidebar = document.getElementById("sidebar");
-  const {locators, map, path, plan, activeGraphNodeName, status, statusText, title} = state;
+  const {dataWarningSeen, locators, map, path, plan, activeGraphNodeName, status, statusText, title} = state;
+  const showDataWarning = !dataWarningSeen && !["localhost", "127.0.0.1"].includes(window.location.hostname)
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from") || ""
   const to = searchParams.get("to") || "";
@@ -154,6 +156,11 @@ function render(state) {
   sidebar.innerHTML = `
     <header>
       <h1 class="logo">${title}</h1>
+      ${showDataWarning ? `
+        <div role="alert" class="alert alert--warning">
+            <p class="alert__message" lang="nl">⚠️ VaarWeg is data-intensief, houd rekening met dataverbruik wanneer je deze pagina opent via een mobiele verbinding.</p>
+            <p class="alert__translation" lang="en">VaarWeg is data intensive, please consider data usage when opening this page on a mobile connection.</p>
+          </div>` : ``}
     </header>
 
     <form class="form" method="get" action="./">
@@ -215,6 +222,17 @@ function initEvents() {
     })
   }
 
+  const handleClick = (e) => {
+    handleAlertClick(e)
+    handlePlanLinkClick(e)
+  }
+
+  const handleAlertClick = (e) => {
+    if (!e.target.classList.contains('alert')) return
+    setState({dataWarningSeen: true})
+    localStorage.setItem("VaarWeg.dataWarningSeen", "true")
+  }
+
   const handlePlanLinkClick = (e) => {
     if (!e.target.parentElement.classList.contains('plan__list-item')) return
     const id = e.target.id
@@ -224,7 +242,7 @@ function initEvents() {
   }
 
   document.addEventListener("submit", handleSubmit);
-  document.addEventListener("click", handlePlanLinkClick);
+  document.addEventListener("click", handleClick);
 }
 
 /**

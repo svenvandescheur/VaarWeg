@@ -24,6 +24,10 @@ body {
     padding-block-end: 0;
 }
 
+#sidebar .alert {
+    margin: 0.5rem 0;
+}
+
 .logo {
     color: cornflowerblue;
     font-family: "Brush Script MT";
