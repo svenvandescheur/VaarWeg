@@ -6,22 +6,32 @@ import json
 import math
 import sys
 from datetime import datetime
+from itertools import count
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Tuple
 
+from scipy.spatial import KDTree
 from tqdm import tqdm
-
 
 def distance(c1: Tuple[float, float], c2: Tuple[float, float]) -> float:
     """Euclidean distance between two coordinates."""
     return math.hypot(c1[0] - c2[0], c1[1] - c2[1])
 
 
+canal_id_gen = count()
+
+
 def canal_to_id(canal: dict) -> str:
     """Create id for canal."""
+    if "_id" in canal:
+        return canal["_id"]
+
     name = canal["properties"].get("name") or "node"
-    key = stable_hash(canal)
-    return f"{name}#{key}"
+    key = next(canal_id_gen)
+    id = f"{name}#{key}"
+    canal["_id"] = id
+
+    return canal["_id"]
 
 
 def coord_to_id(coord: Tuple[float, float], canal: dict) -> str:
@@ -89,20 +99,33 @@ def compile_data(data: dict, distance_tolerance: float) -> tuple[dict, dict, lis
     links = {}
     locators = {}
 
-    # Filter dataset to only includes features with names.
-    # These values should be safe to work with but may be not strictly be limited to canals.
-    # Other types may be bridges or locks.
+    # Filter dataset to only include features with names
     canals = [f for f in data["features"] if f["properties"].get("name")]
 
-    # Loop through every canal.
-    for canal in tqdm(canals):
-        pos_list: list[Tuple[float, float]] = get_canal_pos_list(canal)
-        properties: dict = canal["properties"]
-        canal_name: str = properties["name"]
-        canal_id: str = canal_to_id(canal)
-        oneway: bool = bool(properties.get("oneway"))
+    # Build KDTree to quickly filter nearby points
+    all_coords = []
+    coord_to_canal = {}
 
-        # Every coordinate becomes a node in the graph.
+    for canal in canals:
+        pos_list = [tuple(coord) for coord in get_canal_pos_list(canal) if coord]
+        canal_id = canal_to_id(canal)
+
+        for coord in pos_list:
+            all_coords.append(coord)
+            if coord not in coord_to_canal:
+                coord_to_canal[coord] = []
+            coord_to_canal[coord].append((canal, canal_id))
+
+    kdtree = KDTree(all_coords)
+
+    # Loop through canals
+    for canal in tqdm(canals):
+        canal_id = canal_to_id(canal)
+        pos_list = get_canal_pos_list(canal)
+        properties = canal["properties"]
+        canal_name = properties["name"]
+        oneway = bool(properties.get("oneway"))
+
         for i, current_coord in enumerate(pos_list):
             previous_coord = pos_list[i - 1]
             next_coord = pos_list[i + 1] if i + 1 < len(pos_list) else None
@@ -117,50 +140,48 @@ def compile_data(data: dict, distance_tolerance: float) -> tuple[dict, dict, lis
             if not oneway:  # FIXME: improve
                 neighbors.append([canal_id, coord_to_id(previous_coord, canal)])
 
-            # Add connected canals.
-            for other_canal in canals:
-                if other_canal == canal:
-                    continue
+            # Add connected canals using KDTree
+            nearby_indices = kdtree.query_ball_point(current_coord, distance_tolerance)
+            for idx in nearby_indices:
+                other_coord = all_coords[idx]
+                for other_canal, other_canal_id in coord_to_canal[other_coord]:
+                    if other_canal == canal and other_coord == current_coord:
+                        continue
+                    neighbors.append(
+                        [other_canal_id, coord_to_id(other_coord, other_canal)]
+                    )
 
-                for other_canal_coord in get_canal_pos_list(other_canal):
-                    if distance(current_coord, other_canal_coord) < distance_tolerance:
-                        neighbors.append(
-                            [
-                                canal_to_id(other_canal),
-                                coord_to_id(other_canal_coord, other_canal),
-                            ]
-                        )
+            # Build graph node
+            node_id = coord_to_id(current_coord, canal)
+            graph[node_id] = {"name": node_id, "pos": current_coord, "neighbors": neighbors}
 
-            # Build graph node.
-            id = coord_to_id(current_coord, canal)
-            graph[id] = {"name": id, "pos": current_coord, "neighbors": neighbors}
+            # Build link node
+            links[canal_id] = {"name": canal_name, "posList": pos_list, "feature": canal}
 
-            # Build Link node.
-            links[canal_id] = {
-                "name": canal_name,
-                "posList": pos_list,
-                "feature": canal,
-            }
-
-            if not locators.get(canal_name):
-                locators[canal_name] = {
-                    "name": canal_name,
-                    "value": id,
-                }
+            if canal_name not in locators:
+                locators[canal_name] = {"name": canal_name, "value": node_id}
 
     return graph, links, list(locators.values())
 
 
+canal_pos_list_cache = {}
+
+
 def get_canal_pos_list(canal: dict) -> list[Tuple[float, float]]:
     """Returns a flat list of coordinates related to a canal."""
+    id = canal_to_id(canal)
+    if id in canal_pos_list_cache:
+        return canal_pos_list_cache[id]
+
+    result: list
     geometry: dict = canal["geometry"]
 
-    # Built a list of (long, lat) coordinates, normalize, geometry.
+    # Build a list of (long, lat) coordinates, normalize, geometry.
     geometry_type: str = geometry["type"]
     coordinates: list[[float, float]]
 
     if geometry_type == "Point":
-        return [geometry["coordinates"]]
+        result = [geometry["coordinates"]]
     elif geometry_type == "MultiPolygon":
         return [
             pair
@@ -169,9 +190,12 @@ def get_canal_pos_list(canal: dict) -> list[Tuple[float, float]]:
             for pair in ring
         ]
     elif geometry_type == "Polygon":
-        return [pair for ring in geometry["coordinates"] for pair in ring]
+        result = [pair for ring in geometry["coordinates"] for pair in ring]
     else:
-        return geometry["coordinates"]
+        result = geometry["coordinates"]
+
+    canal_pos_list_cache[id] = result
+    return result
 
 
 def save_output(graph: dict, links: dict, locators: list, graph_file: Path, links_file: Path,
