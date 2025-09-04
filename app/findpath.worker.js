@@ -43,16 +43,18 @@ async function handleFetch(action) {
   }
 
   // From file.
-  const {graphSrc, linksSrc, locatorsSrc} = action.payload;
-
+  const {graphSrc} = action.payload;
   const graph = await loadData(graphSrc)
-  const links = await loadData(linksSrc)
-  const _locators = await loadData(locatorsSrc)
 
-  // FIXME: Should be pre-sorted.
-  const locators = {..._locators, locators: _locators.locators.sort((a, b) => a.name.localeCompare(b.name))}
+  const locators = {
+    locators: [...new Set(
+      Object.keys(graph.graph)
+        .map(k => k.split('#')[0])
+        .sort((a, b) => a.localeCompare(b))
+    )]
+  }
 
-  setState({graph, links, locators})
+  setState({graph, locators})
   dispatch(action, {body: {locators}})
 }
 
@@ -64,6 +66,7 @@ async function handleFetch(action) {
 async function loadData(src) {
   const contents = await fetchFile(src)
   const data = JSON.parse(contents);
+
   if ("chunks" in data && "chunkTarget" in data && Array.isArray(data.chunks)) {
     const path = src.split("/");
     const filename = path.pop();
@@ -92,7 +95,6 @@ async function fetchFile(path) {
 async function handleCalculateRoute(action) {
   const {from, to} = action.payload;
   const graph = STATE.graph;
-  const links = STATE.links;
 
   const start = findGraphNode(graph, from);
   const end = findGraphNode(graph, to);
@@ -102,10 +104,10 @@ async function handleCalculateRoute(action) {
     return;
   }
 
-  const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph, links))
+  const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph))
 
   // TODO: Type.
-  const plan = path ? path.reduce((acc, {graphNode, link}) => {
+  const plan = path ? path.reduce((acc, {graphNode, link}, i) => {
     if (!link) return acc;
 
     const lastLinkName = acc.slice(-1)[0]?.name;
@@ -115,7 +117,7 @@ async function handleCalculateRoute(action) {
       return acc;
     }
 
-    return [...acc, {name: linkName, graphNodeName: graphNode.name}]
+    return [...acc, {name: linkName, graphNodeName: i}]
   }, []) : []
 
 
@@ -124,21 +126,24 @@ async function handleCalculateRoute(action) {
 }
 
 /**
- * Finds a graph node by its name.
- *
- * Attempts to return an exact match from the graph dictionary first.
- * If no exact match is found, it falls back to a partial match by checking
- * if any node's name starts with the given `graphNodeName`.
+ * Finds a graph node by its (partial) name.
  *
  * @param {Graph} graph - The graph object containing nodes.
  * @param {Object<string, {name: string}>|Array<{name: string}>} graph.graph -
  *        A dictionary (keyed by node name) or an array of node objects.
- * @param {string} graphNodeName - The node name (or prefix) to search for.
- * @returns {{name: string}|undefined} The matching node object, or undefined if not found.
+ * @param {string} partialName - The node name (or prefix) to search for.
+ * @returns {GraphNode|undefined} The matching node object, or undefined if not found.
  */
-function findGraphNode(graph, graphNodeName) {
-  return graph.graph[graphNodeName]
-    ?? Object.values(graph.graph).find(n => n.name.toLowerCase().startsWith(graphNodeName.toLowerCase()));
+function findGraphNode(graph, partialName) {
+  const keyEntries = [...new Set(
+    Object.keys(graph.graph)
+      .map(k => k.split("#"))
+  )]
+  const keyEntry = keyEntries.find((ke => ke[0].toLowerCase() === partialName.toLowerCase()))
+    ?? keyEntries.find(ke => ke[0].toLowerCase().startsWith(partialName.toLowerCase()))
+
+  const key = keyEntry.join("#");
+  return graph.graph[key]
 }
 
 /**
@@ -146,7 +151,7 @@ function findGraphNode(graph, graphNodeName) {
  * @returns {string}
  */
 function computeKey(node) {
-  return node.name
+  return `${node.l};${node.p.join(",")}`;
 }
 
 /**
@@ -155,8 +160,8 @@ function computeKey(node) {
  * @param {GraphNode} node2
  */
 function computeDistance(node1, node2, order = 'lonlat') {
-  const [a0, a1] = node1.pos.map(Number);
-  const [b0, b1] = node2.pos.map(Number);
+  const [a0, a1] = node1.p.map(Number);
+  const [b0, b1] = node2.p.map(Number);
 
   let lat1, lon1, lat2, lon2;
   if (order === 'lonlat') {
@@ -191,17 +196,16 @@ function computeDistance(node1, node2, order = 'lonlat') {
  * @return {[string, GraphNode[]]}
  */
 function findNeighbours(graph, node) {
-  return node.neighbors.map(n => graph.graph[n[1]]);
+  return node.x.map(n => graph.graph[n]);
 }
 
 /**
  *
  * @param {Graph} graph
- * @param links
  * @param {{[index: string|number|symbol]: {graphNode: GraphNode, link: string|null}}[]} cameFrom
  * @param {GraphNode} current
  */
-function reconstructRenderablePath(graph, links, cameFrom, current) {
+function reconstructRenderablePath(graph, cameFrom, current) {
   const path = []
 
   let graphNode = current;
@@ -211,11 +215,11 @@ function reconstructRenderablePath(graph, links, cameFrom, current) {
     const prevNode = graphNode
 
     graphNode = cameFrom[computeKey(graphNode)]
-    link = graphNode && prevNode.neighbors
-      .find(([_, neighborName]) => computeKey(graph.graph[neighborName]) === computeKey(graphNode))?.[0]
+    link = graphNode && prevNode.x
+      .find(neighborId => computeKey(graph.graph[neighborId]) === computeKey(graphNode))
   }
 
   return path.map(n => {
-    return {...n, graphNode: {...n.graphNode, pos: n.graphNode.pos.toReversed()}};
+    return {...n, graphNode: {...n.graphNode, p: n.graphNode.p.toReversed()}};
   })
 }

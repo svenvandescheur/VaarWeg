@@ -9,8 +9,8 @@ const {setState, dispatch} = createReactiveApp("app", render, {
   action: null,
   ready: false,
   path: [],
+  activePathIndex: null,
   plan: [],
-  activeGraphNodeName: null,
   map: null,
 }, "./findpath.worker.js", onMessage)
 
@@ -46,15 +46,13 @@ async function onMessage({data}) {
 /**
  * Dispatches call to worker.
  * @param {string} graphSrc
- * @param {string} linksSrc
- * @param {string} locatorsSrc
  * @returns {Promise<void>}
  */
-async function dispatchFetch(graphSrc, linksSrc, locatorsSrc) {
+async function dispatchFetch(graphSrc) {
   setState({status: 102, statusText: "Loading"})
 
   /** @type {Action} */
-  const action = {name: "FETCH", payload: {graphSrc, linksSrc, locatorsSrc}}
+  const action = {name: "FETCH", payload: {graphSrc}}
   dispatch(action)
 }
 
@@ -109,7 +107,7 @@ function handleCalculateRouteResponse(action) {
  */
 function render(state) {
   const sidebar = document.getElementById("sidebar");
-  const {dataWarningSeen, locators, map, path, plan, activeGraphNodeName, status, statusText, title} = state;
+  const {dataWarningSeen, locators, map, path, plan, activePathIndex, status, statusText, title} = state;
   const showDataWarning = !dataWarningSeen && !["localhost", "127.0.0.1"].includes(window.location.hostname)
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from") || ""
@@ -131,8 +129,8 @@ function render(state) {
       const even = i % 2 === 0;
 
       if (nextNode) {
-        const sectionStart = node.graphNode.pos
-        const sectionEnd = nextNode.graphNode.pos
+        const sectionStart = node.graphNode.p
+        const sectionEnd = nextNode.graphNode.p
         const polyline = L.polyline([sectionStart, sectionEnd], {
           color: even ? 'cornflowerblue' : 'cornflowerblue',
           weight: 6
@@ -141,14 +139,14 @@ function render(state) {
         polyline.bindPopup(node.link?.split("#")[0])
         polylines.push(polyline);
 
-        if (node.graphNode.name === activeGraphNodeName) {
+        if (i === activePathIndex) {
           map.fitBounds(polyline.getBounds())
         }
       }
     }
 
     const featureGroup = L.featureGroup(polylines);
-    if (activeGraphNodeName === null) map.fitBounds(featureGroup.getBounds())
+    if (activePathIndex === null) map.fitBounds(featureGroup.getBounds())
 
   }
 
@@ -166,7 +164,7 @@ function render(state) {
     <form class="form" method="get" action="./">
       <label class="form-control">Van: <input class="input" list="locators" name="from" placeholder="🏠"value="${from}" required/></label>
       <label class="form-control">Naar: <input class="input" list="locators" name="to" placeholder="🏁" value="${to}" required/></label>
-      <datalist id="locators">${locators?.locators.map(l => `<option>${l.name}</option>`).join("")}</datalist>
+      <datalist id="locators">${locators?.locators.map(l => `<option>${l}</option>`).join("")}</datalist>
 
       <input class="button" type="submit" value="${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}"${status === 102 ? " disabled" : ""}/>
     </form>
@@ -238,7 +236,7 @@ function initEvents() {
     const id = e.target.id
     const index = id.split('plan-')[1];
 
-    setState({activeGraphNodeName: index})
+    setState({activePathIndex: parseInt(index)})
   }
 
   document.addEventListener("submit", handleSubmit);
@@ -251,7 +249,7 @@ function initEvents() {
  */
 
 async function main() {
-  dispatchFetch("./assets/nl_graph.json", "./assets/nl_links.json", "./assets/nl_locators.json");
+  dispatchFetch("./assets/nl_graph.json");
   initMap()
   initEvents();
 }

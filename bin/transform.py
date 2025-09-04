@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import hashlib
 import json
-import math
 import sys
 from datetime import datetime
 from itertools import count
@@ -12,11 +10,6 @@ from typing import Tuple
 
 from scipy.spatial import KDTree
 from tqdm import tqdm
-
-def distance(c1: Tuple[float, float], c2: Tuple[float, float]) -> float:
-    """Euclidean distance between two coordinates."""
-    return math.hypot(c1[0] - c2[0], c1[1] - c2[1])
-
 
 canal_id_gen = count()
 
@@ -36,12 +29,13 @@ def canal_to_id(canal: dict) -> str:
 
 def coord_to_id(coord: Tuple[float, float], canal: dict) -> str:
     """Create id for coordinate in canal."""
-    return f"{canal_to_id(canal)};{coord[0]},{coord[1]}"
+    rounded_coord = round_coord(coord)
+    return f"{canal_to_id(canal)};{rounded_coord[0]},{rounded_coord[1]}"
 
 
-def stable_hash(obj, length=7) -> str:
-    data = json.dumps(obj, sort_keys=True).encode("utf-8")
-    return hashlib.sha256(data).hexdigest()[:length]
+def round_coord(coord: Tuple[float, float], decimals: int = 5) -> Tuple[float, float]:
+    """Round coordinate tuple to given decimals."""
+    return [round(coord[0], decimals), round(coord[1], decimals)]
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,20 +56,6 @@ def parse_args() -> argparse.Namespace:
         default="graph_nodes.json",
     )
     parser.add_argument(
-        "links_output",
-        nargs="?",
-        type=str,
-        help="Output JSON file for links",
-        default="graph_links.json",
-    )
-    parser.add_argument(
-        "locators_output",
-        nargs="?",
-        type=str,
-        help="Output JSON file for locators",
-        default="graph_locators.json",
-    )
-    parser.add_argument(
         "--dist-tolerance",
         type=float,
         default=0.000005,
@@ -94,10 +74,8 @@ def load_data(input_file: Path) -> dict:
     return json.load(f)
 
 
-def compile_data(data: dict, distance_tolerance: float) -> tuple[dict, dict, list]:
+def compile_data(data: dict, distance_tolerance: float) -> dict:
     graph = {}
-    links = {}
-    locators = {}
 
     # Filter dataset to only include features with names
     canals = [f for f in data["features"] if f["properties"].get("name")]
@@ -123,22 +101,21 @@ def compile_data(data: dict, distance_tolerance: float) -> tuple[dict, dict, lis
         canal_id = canal_to_id(canal)
         pos_list = get_canal_pos_list(canal)
         properties = canal["properties"]
-        canal_name = properties["name"]
         oneway = bool(properties.get("oneway"))
 
         for i, current_coord in enumerate(pos_list):
             previous_coord = pos_list[i - 1]
             next_coord = pos_list[i + 1] if i + 1 < len(pos_list) else None
 
-            neighbors: list[[str, str]] = []
+            neighbors: list[str] = []
 
             # Only add next coordinate as neighbor if next coordinate exists.
             if next_coord:
-                neighbors.append([canal_id, coord_to_id(next_coord, canal)])
+                neighbors.append(coord_to_id(next_coord, canal))
 
             # Only add previous coordinates as neighbor if not one way traffic.
             if not oneway:  # FIXME: improve
-                neighbors.append([canal_id, coord_to_id(previous_coord, canal)])
+                neighbors.append(coord_to_id(previous_coord, canal))
 
             # Add connected canals using KDTree
             nearby_indices = kdtree.query_ball_point(current_coord, distance_tolerance)
@@ -148,20 +125,14 @@ def compile_data(data: dict, distance_tolerance: float) -> tuple[dict, dict, lis
                     if other_canal == canal and other_coord == current_coord:
                         continue
                     neighbors.append(
-                        [other_canal_id, coord_to_id(other_coord, other_canal)]
+                        coord_to_id(other_coord, other_canal)
                     )
 
             # Build graph node
             node_id = coord_to_id(current_coord, canal)
-            graph[node_id] = {"name": node_id, "pos": current_coord, "neighbors": neighbors}
+            graph[node_id] = {"l": canal_id, "p": round_coord(current_coord), "x": neighbors}
 
-            # Build link node
-            links[canal_id] = {"name": canal_name, "posList": pos_list, "feature": canal}
-
-            if canal_name not in locators:
-                locators[canal_name] = {"name": canal_name, "value": node_id}
-
-    return graph, links, list(locators.values())
+    return graph
 
 
 canal_pos_list_cache = {}
@@ -198,8 +169,7 @@ def get_canal_pos_list(canal: dict) -> list[Tuple[float, float]]:
     return result
 
 
-def save_output(graph: dict, links: dict, locators: list, graph_file: Path, links_file: Path,
-                locators_file: Path) -> None:
+def save_output(graph: dict, graph_file: Path) -> None:
     """Save graph and links to JSON files."""
     graph_output = {
         "name": str(graph_file),
@@ -207,26 +177,10 @@ def save_output(graph: dict, links: dict, locators: list, graph_file: Path, link
         "schemaVersion": 1.0,
         "graph": graph,
     }
-    links_output = {
-        "name": str(links_file),
-        "createdAt": datetime.utcnow().isoformat(),
-        "schemaVersion": 1.0,
-        "tree": links,
-    }
-    locators_output = {
-        "name": str(locators_file),
-        "createdAt": datetime.utcnow().isoformat(),
-        "schemaVersion": 1.0,
-        "locators": locators,
-    }
 
     try:
         with graph_file.open("w") as f:
             json.dump(graph_output, f, indent=2)
-        with links_file.open("w") as f:
-            json.dump(links_output, f, indent=2)
-        with locators_file.open("w") as f:
-            json.dump(locators_output, f, indent=2)
     except Exception as e:
         sys.stderr.write(f"Error writing output files: {e}\n")
         sys.exit(1)
@@ -237,15 +191,12 @@ def main():
 
     input_file = Path(args.input)
     graph_file = Path(args.graph_output)
-    links_file = Path(args.links_output)
-    locators_file = Path(args.locators_output)
 
     data = load_data(input_file)
-    graph, links, locators = compile_data(data, args.dist_tolerance)
-    save_output(graph, links, locators, graph_file, links_file, locators_file)
+    graph = compile_data(data, args.dist_tolerance)
+    save_output(graph, graph_file)
 
     print(f"Graph saved to {graph_file}")
-    print(f"Links saved to {links_file}")
 
 
 if __name__ == "__main__":

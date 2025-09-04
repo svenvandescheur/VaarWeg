@@ -42,11 +42,11 @@ Gebruik het verwerk-script om waterwegen te filteren en exporteer naar JSON:
 Gebruik het Python transform-script om de gefilterde JSON-data om te zetten naar bestanden die de routeplanner gebruikt:
 
 ```bash
-./bin/transform.py data/netherlands-latest.json app/assets/nl_graph.json app/assets/nl_links.json app/assets/nl_locators.json
+./bin/transform.py data/netherlands-latest.osm.json app/assets/nl_graph.json  && ./bin/compress.py app/assets/nl_graph.json
 ``` 
 
 Na deze stappen is de dataset up-to-date en direct bruikbaar door **VaarWeg**. Standaard zoekt de app naar
-`nl_graph.json`, `nl_links.json` en `nl_locators.json` in de `assets` map.
+`nl_graph.json` in de `assets` map.
 
 ## 📜 Bronvermelding
 

@@ -28,7 +28,8 @@
 
 /**
  * @typedef GraphNode *
- * @property {string} name
- * @property {string[]} pos
- * @property {[string, string][]} neighbors
+ * @property {string} l - The link id this node is a member of.
+ * @property {string[]} p - The positions (coordinates) of this node.
+ * @property {string[]} x - The keys of the neighboring nodes.
+ * @property {string[]} neighbors
  */
