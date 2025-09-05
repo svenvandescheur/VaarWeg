@@ -15,8 +15,8 @@ De applicatie is volledig statisch en werkt zonder backend of database.
 
 ```bash
 git clone https://github.com/svenvandescheur/vaarweg.git
-cd vaarweg/app
-npx live-server  # Of gebruik een andere statische webserver
+cd vaarweg
+npx live-server app  # Of gebruik een andere statische webserver
 ```
 
 ## 📥 Data bijwerken
@@ -42,7 +42,7 @@ Gebruik het verwerk-script om waterwegen te filteren en exporteer naar JSON:
 Gebruik het Python transform-script om de gefilterde JSON-data om te zetten naar bestanden die de routeplanner gebruikt:
 
 ```bash
-./bin/transform.py data/netherlands-latest.osm.json app/assets/nl_graph.json  && ./bin/compress.py app/assets/nl_graph.json
+./bin/transform.py data/netherlands-latest.osm.json app/assets/nl_graph.json && ./bin/compress.py app/assets/nl_graph.json
 ``` 
 
 Na deze stappen is de dataset up-to-date en direct bruikbaar door **VaarWeg**. Standaard zoekt de app naar

@@ -66,6 +66,8 @@ function handleFetchResponse(action) {
     return;
   }
 
+  window.graph = action.result.body.graph
+
   setState({
     status: action.result.status,
     statusText: action.result.statusText,
