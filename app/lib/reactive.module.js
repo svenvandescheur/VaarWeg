@@ -67,7 +67,8 @@ function _dispatch(action, result, setState = _setState, worker = undefined) {
   /** @type {ActionResult} */
   const defaultResult = {
     status: 200,
-    statusText: "OK"
+    statusText: "OK",
+    body: {},
   };
 
   const _result = result ? Object.assign(defaultResult, result) : undefined;

@@ -38,38 +38,109 @@ async function handleFetch(action) {
     return;
   }
 
+  /**
+   * @param progressEvent
+   */
+  const handleProgress = (progressEvent) => {
+    dispatch(action, {
+      status: 102, statusText: "Downloading map",
+      body: {
+        progress: {
+          lengthComputable: progressEvent.lengthComputable,
+          loaded: progressEvent.loaded,
+          total: progressEvent.total,
+        }
+      }
+    });
+  }
+
   const {graphSrc} = action.payload;
-  const graph = await loadData(graphSrc);
-  initializeGraph(graph);
+  const graph = await fetchFile(graphSrc, handleProgress);
+  initializeGraph(graph, action);
 
   // Build list of unique canal names from links
   const locators = {locators: [...new Set(graph.links)]};
   setState({graph, locators});
-  dispatch(action, {body: {graph, locators}});
+  dispatch(action, {statusText: "Map loaded", body: {graph, locators}});
 }
 
 /**
- * Load JSON data.
+ * Fetch a file from the given URL and return its content as text,
+ * while optionally reporting download progress.
+ *
+ * This function reads the response in chunks using a ReadableStream,
+ * which allows progress updates even for large files. If the
+ * "Content-Length" header is present, progress events will report
+ * the fraction of the file loaded. Otherwise, progress events
+ * will be emitted with `lengthComputable = false`.
+ *
+ * @param {string} path - The URL or path of the file to fetch.
+ * @param {function(ProgressEvent): void} [onProgress=()=>null] -
+ *        Optional callback function called with a ProgressEvent
+ *        each time a chunk is loaded.
+ *        The ProgressEvent has properties:
+ *          - lengthComputable: boolean
+ *          - loaded: number (bytes loaded so far)
+ *          - total: number|null (total bytes if known)
+ *
+ * @returns {Promise<string>} - A promise that resolves to the file content as text.
  */
-async function loadData(src) {
-  const contents = await fetchFile(src);
-  return JSON.parse(contents);
-}
-
-/**
- * Fetch file as text.
- */
-async function fetchFile(path) {
+async function fetchFile(path, onProgress = () => null) {
   const response = await fetch(path);
-  return await response.text();
+
+  const contentLength = response.headers.get("Content-Length");
+  const total = contentLength ? parseInt(contentLength) : null;
+  let loaded = 0;
+
+  const reader = response.body.getReader();
+  const chunks = [];
+
+  while (true) {
+    const {done, value} = await reader.read()
+    if (done) break
+
+    chunks.push(value)
+    loaded += value.length
+
+    const event = new ProgressEvent("progress", {
+      lengthComputable: Boolean(contentLength),
+      loaded,
+      total,
+    })
+
+    onProgress(event)
+  }
+
+  const blob = new Blob(chunks);
+  return JSON.parse(await blob.text())
 }
 
 /**
  * Reverses file-size optimizations to the graph, converting it into a workable format.
  */
-function initializeGraph(graph) {
+function initializeGraph(graph, action) {
   const normalizedGraph = {}
-  for (const key of graph.graph.split(";")) {
+  const graphNodes = graph.graph.split(";");
+  let completed = 0;
+  let progress = 0;
+
+  for (const key of graphNodes) {
+    // Limit amount of events sent back to main thread.
+    const _progress = Math.round(completed / graphNodes.length * 100);
+    if (_progress > progress) {
+      progress = _progress;
+      dispatch(action, {
+        status: 102, statusText: "Parsing map",
+        body: {
+          progress: {
+            lengthComputable: true,
+            loaded: completed,
+            total: graphNodes.length,
+          }
+        }
+      })
+    }
+
     const [meta, neighborsStr] = key.split(":")
     const [linkId, coordId, posStr] = meta.split("#")
     const nodeId = `${linkId}#${coordId}`;
@@ -79,6 +150,8 @@ function initializeGraph(graph) {
       p: posStr.split(",").map(c => restoreCoordinate(c)),
       x: neighborsStr?.split(",") || []
     }
+
+    completed++;
   }
   graph.graph = normalizedGraph;
   graph.links = graph.links.split("#")
@@ -204,17 +277,37 @@ async function handleCalculateRoute(action) {
   const {from, to} = action.payload;
   const graph = STATE.graph;
 
+
+  dispatch(action, {status: 102, statusText: `Resolving nodes`});
   const start = findGraphNode(graph, from);
   const end = findGraphNode(graph, to);
 
-  console.log({start, end})
-
   if (!start || !end) {
-    dispatch(action, {status: 400, statusText: `"From" or "To" not found.`});
+    dispatch(action, {status: 400, statusText: `"From" or "To" not found`});
     return;
   }
 
-  const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph));
+  let progress = 0;
+  /**
+   * @param progressEvent
+   */
+  const handleProgress = (progressEvent) => {
+    const _progress = Math.round(progressEvent.loaded / progressEvent.total * 10);
+    if (_progress > progress) {
+      progress = _progress;
+      dispatch(action, {
+        status: 102, statusText: "Calculating route",
+        body: {
+          progress: {
+            lengthComputable: progressEvent.lengthComputable,
+            loaded: progressEvent.loaded,
+            total: progressEvent.total,
+          }
+        }
+      });
+    }
+  }
+  const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph), handleProgress);
 
   const plan = path ? path.reduce((acc, {graphNode, link}, i) => {
     if (!link) return acc;
@@ -225,5 +318,7 @@ async function handleCalculateRoute(action) {
     return [...acc, {name: linkName, graphNodeName: i}];
   }, []) : [];
 
-  dispatch(action, path ? {body: {path, plan}} : {status: 404, statusText: "No path found"});
+  dispatch(action, path
+    ? {body: {path, plan}}
+    : {status: 404, statusText: "No path found"});
 }

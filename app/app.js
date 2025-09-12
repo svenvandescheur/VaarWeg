@@ -11,6 +11,7 @@ const {setState, dispatch} = createReactiveApp("app", render, {
   path: [],
   activePathIndex: null,
   plan: [],
+  progress: 0,
   map: null,
 }, "./findpath.worker.js", onMessage)
 
@@ -66,14 +67,21 @@ function handleFetchResponse(action) {
     return;
   }
 
-  window.graph = action.result.body.graph
-
-  setState({
-    status: action.result.status,
-    statusText: action.result.statusText,
-    ready: true,
-    locators: action.result.body.locators,
-  })
+  if (action.result.status < 200) {
+    setState({
+      status: action.result.status,
+      statusText: action.result.statusText,
+      ready: false,
+      progress: action.result.body.progress.loaded / action.result.body.progress.total
+    })
+  } else {
+    setState({
+      status: action.result.status,
+      statusText: action.result.statusText,
+      ready: true,
+      locators: action.result.body.locators,
+    })
+  }
 }
 
 /**
@@ -95,12 +103,23 @@ async function dispatchCalculateRoute(from, to) {
  * @param {Action} action
  */
 function handleCalculateRouteResponse(action) {
-  setState({
-    status: action.result.status,
-    statusText: action.result.statusText,
-    path: action.result.body?.path,
-    plan: action.result.body?.plan,
-  })
+  if (action.result.status < 200 && action.result.body.progress) {
+    setState({
+      status: action.result.status,
+      statusText: action.result.statusText,
+      progress: action.result.body.progress.loaded / action.result.body.progress.total,
+      ready: false,
+    })
+  }
+  else {
+    setState({
+      status: action.result.status,
+      statusText: action.result.statusText,
+      path: action.result.body?.path,
+      plan: action.result.body?.plan,
+      ready: true,
+    })
+  }
 }
 
 /**
@@ -109,7 +128,19 @@ function handleCalculateRouteResponse(action) {
  */
 function render(state) {
   const sidebar = document.getElementById("sidebar");
-  const {dataWarningSeen, locators, map, path, plan, activePathIndex, status, statusText, title} = state;
+  const {
+    dataWarningSeen,
+    locators,
+    map,
+    path,
+    plan,
+    progress,
+    ready,
+    activePathIndex,
+    status,
+    statusText,
+    title
+  } = state;
   const showDataWarning = !dataWarningSeen && !["localhost", "127.0.0.1"].includes(window.location.hostname)
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from") || ""
@@ -171,21 +202,23 @@ function render(state) {
       <input class="button" type="submit" value="${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}"${status === 102 ? " disabled" : ""}/>
     </form>
 
-    ${plan ? `
     <section class="plan">
-      <ol class="plan__list">
-        ${plan.map(({name, graphNodeName}) => `
-        <li class="plan__list-item">
-          <button class="button button--link" id="plan-${graphNodeName}">${name}</button>
-        </li>`).join("")}
-      </ol>
+      ${plan ? `
+        <ol class="plan__list">
+          ${plan.map(({name, graphNodeName}) => `
+          <li class="plan__list-item">
+            <button class="button button--link" id="plan-${graphNodeName}">${name}</button>
+          </li>`).join("")}
+        </ol>
+      ` : ''}
     </section>
 
     <footer class="statusbar">
-      <span>Status: ${statusText} (${status})</span>
+      <span>Status: ${statusText}</span> ${ready
+    ? ''
+    : `<progress class="progressbar" max="100" value="${progress * 100}">${progress * 100}%</progress>`}
     </footer>
 </footer>
-    ` : ''}
   `;
 }
 

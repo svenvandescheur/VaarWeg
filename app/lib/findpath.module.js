@@ -5,9 +5,16 @@
  * @param {(from: unknown, to: unknown) => number} computeDistanceFn - Function that takes current node and destination node to provide the distance (heuristic).
  * @param {(graphNode: unknown) => unknown[]} findNeighborsFn - Function that takes current node and returns the neighbor nodes.
  * @param {(cameFrom: {[index: string|number|symbol]: unknown}, current: unknown) => unknown[]|*} reconstructPathFn - Function that takes current node and returns the neighbor nodes.
+ * @param {function(ProgressEvent): void} [onProgress=()=>null] -
+ *        Optional callback function called with a ProgressEvent
+ *        each time a chunk is loaded.
+ *        The ProgressEvent has properties:
+ *          - lengthComputable: true
+ *          - loaded: number
+ *          - total: number
  * @return {unknown[]|*} - Return value of `reconstructPathFn`.
  */
-export function findPath(start, goal, computeKeyFn, computeDistanceFn, findNeighborsFn, reconstructPathFn = reconstructPath) {
+export function findPath(start, goal, computeKeyFn, computeDistanceFn, findNeighborsFn, reconstructPathFn = reconstructPath, onProgress = () => null) {
   const openSet = [start]
   const cameFrom = {}
   const startKey = computeKeyFn(start);
@@ -29,9 +36,17 @@ export function findPath(start, goal, computeKeyFn, computeDistanceFn, findNeigh
       const tentativeGScore = gScore[currentKey] + computeDistanceFn(current, neighbor)
 
       if (tentativeGScore < knownGScore) {
+        const neighborDistanceToGoal = computeDistanceFn(neighbor, goal);
+
         gScore[neighborKey] = tentativeGScore;
-        fScore[neighborKey] = tentativeGScore + computeDistanceFn(neighbor, goal);
+        fScore[neighborKey] = tentativeGScore + neighborDistanceToGoal;
         cameFrom[neighborKey] = current;
+
+        onProgress(new ProgressEvent("progress", {
+          lengthComputable: typeof graphSize !== "undefined",
+          loaded: gScore[neighborKey] / fScore[neighborKey] * 100,
+          total: 100
+        }))
 
         openSet.push(neighbor)
         openSet.sort((a, b) => {

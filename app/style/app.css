@@ -87,8 +87,11 @@ body {
 }
 
 .statusbar {
+    box-sizing: border-box;
+    display: flex;
     font-family: Tahoma;
     font-size: 12px;
+    justify-content: space-between;
     padding: 0.5rem 0;
 }
 

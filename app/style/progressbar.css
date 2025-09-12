@@ -1,0 +1,25 @@
+.progressbar {
+    --progressbar-color-bar: lightgray;
+    --progressbar-color-value: cornflowerblue;
+    --progressbar-color-border: gray;
+
+    appearance: none;
+    box-sizing: border-box;
+    height: 1.25em;
+    -webkit-appearance: none;
+}
+
+.progressbar::-webkit-progress-bar {
+    background-color: var(--progressbar-color-bar);
+    border: 1px solid var(--progressbar-color-border);
+    box-sizing: border-box;
+}
+
+.progressbar::-webkit-progress-value {
+    background-color: var(--progressbar-color-value);
+}
+
+.progressbar::-moz-progress-bar {
+    background-color: var(--progressbar-color-value);
+    border: 1px solid var(--progressbar-color-border);
+}
