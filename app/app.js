@@ -1,5 +1,6 @@
 // @ts-check
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
+import "./components/index.js"
 
 const {setState, dispatch} = createReactiveApp("app", render, {
   dataWarningSeen: localStorage.getItem("VaarWeg.dataWarningSeen")?.toLowerCase() === "true",
@@ -72,7 +73,7 @@ function handleFetchResponse(action) {
       status: action.result.status,
       statusText: action.result.statusText,
       ready: false,
-      progress: action.result.body.progress.loaded / action.result.body.progress.total
+      progress: action.result.body.progress.loaded / action.result.body.progress.total * 100
     })
   } else {
     setState({
@@ -107,16 +108,15 @@ function handleCalculateRouteResponse(action) {
     setState({
       status: action.result.status,
       statusText: action.result.statusText,
-      progress: action.result.body.progress.loaded / action.result.body.progress.total,
+      progress: action.result.body.progress.loaded / action.result.body.progress.total * 100,
       ready: false,
     })
-  }
-  else {
+  } else {
     setState({
       status: action.result.status,
       statusText: action.result.statusText,
-      path: action.result.body?.path,
-      plan: action.result.body?.plan,
+      path: action.result.body?.path || [],
+      plan: action.result.body?.plan || [],
       ready: true,
     })
   }
@@ -180,45 +180,34 @@ function render(state) {
 
     const featureGroup = L.featureGroup(polylines);
     if (activePathIndex === null) map.fitBounds(featureGroup.getBounds())
-
   }
 
-  // Regular DOM.
   sidebar.innerHTML = `
     <header>
-      <h1 class="logo">${title}</h1>
-      ${showDataWarning ? `
-        <div role="alert" class="alert alert--warning">
-            <p class="alert__message" lang="nl">⚠️ VaarWeg is data-intensief, houd rekening met dataverbruik wanneer je deze pagina opent via een mobiele verbinding.</p>
-            <p class="alert__translation" lang="en">VaarWeg is data intensive, please consider data usage when opening this page on a mobile connection.</p>
-          </div>` : ``}
+      <ui-heading>${title}</ui-heading>
+      ${dataWarningSeen ? '' :  `<ui-alert level="warning">
+          <ui-text>VaarWeg is data-intensief, houd rekening met dataverbruik wanneer je deze pagina opent via een mobiele verbinding.</ui-text>
+          <ui-text slot="translation" size="s" lang="en">VaarWeg is data intensive, please consider data usage when opening this page on a mobile connection.</ui-text>
+      </ui-alert>`}
     </header>
 
-    <form class="form" method="get" action="./">
-      <label class="form-control">Van: <input class="input" list="locators" name="from" placeholder="🏠"value="${from}" required/></label>
-      <label class="form-control">Naar: <input class="input" list="locators" name="to" placeholder="🏁" value="${to}" required/></label>
+<!--    <section>-->
+    <ui-form method="get" action="./">
+      <ui-form-control label="Van" name="from" value="${from}" list="locators" placeholder="🏠" required></ui-form-control>
+      <ui-form-control label="Naar" name="to" value="${to}" list="locators" placeholder="🏁" required></ui-form-control>
       <datalist id="locators">${locators?.locators.map(l => `<option>${l}</option>`).join("")}</datalist>
+      <ui-button variant="primary" type="submit"${status < 200 ? " disabled" : ""}>${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}</ui-button>
+    </ui-form>
 
-      <input class="button" type="submit" value="${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}"${status === 102 ? " disabled" : ""}/>
-    </form>
+    <vw-plan plan="${plan && encodeURIComponent(JSON.stringify(plan, undefined, false))}"></vw-plan>
+<!--    </section>-->
 
-    <section class="plan">
-      ${plan ? `
-        <ol class="plan__list">
-          ${plan.map(({name, graphNodeName}) => `
-          <li class="plan__list-item">
-            <button class="button button--link" id="plan-${graphNodeName}">${name}</button>
-          </li>`).join("")}
-        </ol>
-      ` : ''}
-    </section>
-
-    <footer class="statusbar">
-      <span>Status: ${statusText}</span> ${ready
-    ? ''
-    : `<progress class="progressbar" max="100" value="${progress * 100}">${progress * 100}%</progress>`}
+    <footer>
+    <ui-statusbar>
+      <ui-text size>Status: ${statusText}</ui-text>
+      ${ready ? '' : `<ui-progressbar value="${progress}" title="${progress}%"/>`}
+    </ui-statusbar>
     </footer>
-</footer>
   `;
 }
 
@@ -238,8 +227,21 @@ function initMap() {
  * Sets up events for the toolbar, input values are synced to state.
  */
 function initEvents() {
+  const handleClick = (e) => {
+    handleAlertClick(e);
+  }
+
+  const handleAlertClick = (e) => {
+    if (e.target.tagName !== "UI-ALERT") return
+
+    setState({dataWarningSeen: true})
+    localStorage.setItem("VaarWeg.dataWarningSeen", "true")
+  }
+
+
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e.preventDefault()
+
     const from = e.target.elements.from.value
     const to = e.target.elements.to.value;
 
@@ -247,35 +249,18 @@ function initEvents() {
     const state = Object.fromEntries(Object.entries(STATE).filter(([k, v]) => k !== "map"))
     history.pushState(state, '', `?${params}`)
 
-    setTimeout(() => {
-      dispatchCalculateRoute(
-        e.target.elements.from.value,
-        e.target.elements.to.value,
-      )
-    })
+    dispatchCalculateRoute(from, to);
   }
 
-  const handleClick = (e) => {
-    handleAlertClick(e)
-    handlePlanLinkClick(e)
-  }
 
-  const handleAlertClick = (e) => {
-    if (!e.target.classList.contains('alert')) return
-    setState({dataWarningSeen: true})
-    localStorage.setItem("VaarWeg.dataWarningSeen", "true")
-  }
-
-  const handlePlanLinkClick = (e) => {
-    if (!e.target.parentElement.classList.contains('plan__list-item')) return
-    const id = e.target.id
-    const index = id.split('plan-')[1];
-
-    setState({activePathIndex: parseInt(index)})
+  const handleGraphNodeSelect = (e) => {
+    const graphNodeId = e.detail.graphNodeId
+    setState({activePathIndex: graphNodeId})
   }
 
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("click", handleClick);
+  document.addEventListener("graphNodeSelect", handleGraphNodeSelect);
 }
 
 /**

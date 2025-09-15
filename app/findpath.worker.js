@@ -311,11 +311,11 @@ async function handleCalculateRoute(action) {
 
   const plan = path ? path.reduce((acc, {graphNode, link}, i) => {
     if (!link) return acc;
-    const lastLinkName = acc.slice(-1)[0]?.name;
+    const lastLinkName = acc.slice(-1)[0]?.linkName;
     const linkIndex = parseInt(link.split(";")[0]);
     const linkName = graph.links[linkIndex];
     if (lastLinkName === linkName) return acc;
-    return [...acc, {name: linkName, graphNodeName: i}];
+    return [...acc, {linkName, graphNodeIndex: i}];
   }, []) : [];
 
   dispatch(action, path

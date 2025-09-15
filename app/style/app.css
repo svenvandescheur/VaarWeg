@@ -24,75 +24,8 @@ body {
     padding-block-end: 0;
 }
 
-#sidebar .alert {
+#sidebar ui-alert {
     margin: 0.5rem 0;
-}
-
-.logo {
-    color: cornflowerblue;
-    font-family: "Brush Script MT";
-    font-size: 2rem;
-    margin: 0;
-}
-
-.form {
-    align-items: end;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    justify-content: stretch;
-    margin: 0;
-    padding: 0.5rem 0;
-}
-
-.form-control, .input, .button {
-    font-family: Tahoma;
-    font-size: 12px;
-    height: 2rem;
-    width: 100%;
-}
-
-.form-control {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: space-between;
-}
-
-.form-control .input {
-    width: 75%;
-}
-
-.form .button {
-    width: 12rem;
-}
-
-.plan {
-    border-block: 1px solid gainsboro;
-    height: 100%;
-    overflow: auto;
-}
-
-.plan__list {
-    margin: 0.5rem 0;
-}
-
-.plan__list-item {
-    font-family: Tahoma;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.plan__list-item .button {
-    color: inherit;
-}
-
-.statusbar {
-    box-sizing: border-box;
-    display: flex;
-    font-family: Tahoma;
-    font-size: 12px;
-    justify-content: space-between;
-    padding: 0.5rem 0;
 }
 
 #map {
