@@ -30,38 +30,49 @@ onmessage = async ({data}) => {
 };
 
 /**
- * Handle FETCH action.
+ * Process Worker response.
+ * @param {Action} action
  */
 async function handleFetch(action) {
+  // From state (memoize).
   if (STATE.graph) {
-    dispatch(action, {status: 208, statusText: "From cache", body: STATE.graph});
+    dispatch(action, {status: 208, statusText: "From cache", body: STATE.graph})
     return;
   }
 
-  /**
-   * @param progressEvent
-   */
-  const handleProgress = (progressEvent) => {
-    dispatch(action, {
-      status: 102, statusText: "Downloading map",
-      body: {
-        progress: {
-          lengthComputable: progressEvent.lengthComputable,
-          loaded: progressEvent.loaded,
-          total: progressEvent.total,
-        }
-      }
-    });
+  // From file.
+  const {graphSrc} = action.payload;
+  const graph = await loadData(graphSrc)
+
+  const locators = {
+    locators: [...new Set(
+      Object.keys(graph.graph)
+        .map(k => k.split('#')[0])
+        .sort((a, b) => a.localeCompare(b))
+    )]
   }
 
-  const {graphSrc} = action.payload;
-  const graph = await fetchFile(graphSrc, handleProgress);
-  initializeGraph(graph, action);
+  setState({graph, locators})
+  dispatch(action, {body: {locators}})
+}
 
-  // Build list of unique canal names from links
-  const locators = {locators: [...new Set(graph.links)]};
-  setState({graph, locators});
-  dispatch(action, {statusText: "Map loaded", body: {graph, locators}});
+/**
+ * Returns JSON parsed data for entry and possibly related chunks.
+ * @param {string} src
+ * @returns {Promise<Object>}
+ */
+async function loadData(src) {
+  const data = await fetchFile(src)
+
+  if ("chunks" in data && "chunkTarget" in data && Array.isArray(data.chunks)) {
+    const path = src.split("/");
+    const filename = path.pop();
+    const promises = data.chunks.map(chunk => fetchFile(path.join("/") + "/" + chunk).then(text => text))
+    const chunks = await Promise.all(promises)
+    data[data.chunkTarget] = chunks.reduce((acc, val) => ({...acc, ...val}), {})
+    return data
+  }
+  return data
 }
 
 /**
@@ -86,6 +97,7 @@ async function handleFetch(action) {
  * @returns {Promise<string>} - A promise that resolves to the file content as text.
  */
 async function fetchFile(path, onProgress = () => null) {
+  // FIXME FIXME FIXME: after 71af1fc2bb5ffd33a285185b9d95ccdb78d04bad progress is broken.
   const response = await fetch(path);
 
   const contentLength = response.headers.get("Content-Length");
@@ -116,102 +128,32 @@ async function fetchFile(path, onProgress = () => null) {
 }
 
 /**
- * Reverses file-size optimizations to the graph, converting it into a workable format.
- */
-function initializeGraph(graph, action) {
-  const normalizedGraph = {}
-  const graphNodes = graph.graph.split(";");
-  let completed = 0;
-  let progress = 0;
-
-  for (const key of graphNodes) {
-    // Limit amount of events sent back to main thread.
-    const _progress = Math.round(completed / graphNodes.length * 100);
-    if (_progress > progress) {
-      progress = _progress;
-      dispatch(action, {
-        status: 102, statusText: "Parsing map",
-        body: {
-          progress: {
-            lengthComputable: true,
-            loaded: completed,
-            total: graphNodes.length,
-          }
-        }
-      })
-    }
-
-    const [meta, neighborsStr] = key.split(":")
-    const [linkId, coordId, posStr] = meta.split("#")
-    const nodeId = `${linkId}#${coordId}`;
-
-    normalizedGraph[nodeId] = {
-      [SYMBOL_GRAPH_NODE_KEY]: nodeId,
-      p: posStr.split(",").map(c => restoreCoordinate(c)),
-      x: neighborsStr?.split(",") || []
-    }
-
-    completed++;
-  }
-  graph.graph = normalizedGraph;
-  graph.links = graph.links.split("#")
-}
-
-
-/**
- * Reverses the base62 coordinate encoding.
- * @returns {number|number}
- * @param {string} encoded - Base62 encoded coordinate.
- * @param {number} decimals
- */
-function restoreCoordinate(encoded, decimals = 5) {
-  let scale = 10 ** decimals;
-  return fromBase62(encoded) / scale;
-}
-
-
-function fromBase62(str) {
-  const base62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-  let neg = str[0] === "-";
-  if (neg) str = str.slice(1);
-
-  let num = 0;
-  for (let i = 0; i < str.length; i++) {
-    num = num * 62 + base62.indexOf(str[i]);
-  }
-  return neg ? -num : num;
-}
-
-/**
- * Compute a unique key for a node.
+ * @param {GraphNode} node
+ * @returns {string}
  */
 function computeKey(node) {
-  console.assert(node);
-  if (!node[SYMBOL_GRAPH_NODE_KEY]) {
-    throw new Error("Graph not initialized!");
-  }
-  return node[SYMBOL_GRAPH_NODE_KEY];
+  return `${node.l};${node.p.join(",")}`;
 }
 
 /**
- * Find a graph node by its name (from links array).
+ * Finds a graph node by its (partial) name.
+ *
+ * @param {Graph} graph - The graph object containing nodes.
+ * @param {Object<string, {name: string}>|Array<{name: string}>} graph.graph -
+ *        A dictionary (keyed by node name) or an array of node objects.
+ * @param {string} partialName - The node name (or prefix) to search for.
+ * @returns {GraphNode|undefined} The matching node object, or undefined if not found.
  */
-function findGraphNode(graph, nodeName) {
-  const linkIndex = graph.links.findIndex(name => name.toLowerCase() === nodeName.toLowerCase());
+function findGraphNode(graph, partialName) {
+  const keyEntries = [...new Set(
+    Object.keys(graph.graph)
+      .map(k => k.split("#"))
+  )]
+  const keyEntry = keyEntries.find((ke => ke[0].toLowerCase() === partialName.toLowerCase()))
+    ?? keyEntries.find(ke => ke[0].toLowerCase().startsWith(partialName.toLowerCase()))
 
-  // Fallback: partial match
-  if (linkIndex === -1) {
-    const partialIndex = graph.links.findIndex(name => name.toLowerCase().startsWith(nodeName.toLowerCase()));
-    if (partialIndex === -1) return undefined;
-    return Object.values(graph.graph).find(node => parseInt(node[SYMBOL_GRAPH_NODE_KEY].split(";")[0]) === partialIndex);
-  }
-
-  // Find first node in graph.graph that belongs to this canal index
-  return Object.values(graph.graph).find(node => {
-    const a = parseInt(node[SYMBOL_GRAPH_NODE_KEY].split(";")[0]);
-    return parseInt(node[SYMBOL_GRAPH_NODE_KEY].split(";")[0]) === linkIndex;
-  });
+  const key = keyEntry.join("#");
+  return graph.graph[key]
 }
 
 /**
@@ -311,12 +253,15 @@ async function handleCalculateRoute(action) {
 
   const plan = path ? path.reduce((acc, {graphNode, link}, i) => {
     if (!link) return acc;
+
     const lastLinkName = acc.slice(-1)[0]?.linkName;
-    const linkIndex = parseInt(link.split(";")[0]);
-    const linkName = graph.links[linkIndex];
-    if (lastLinkName === linkName) return acc;
-    return [...acc, {linkName, graphNodeIndex: i}];
-  }, []) : [];
+    const linkName = link.split("#")[0];
+
+    if (lastLinkName === linkName) {
+      return acc;
+    }
+    return [...acc, {linkName, graphNodeName: i}]
+  }, []) : []
 
   dispatch(action, path
     ? {body: {path, plan}}
