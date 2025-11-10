@@ -114,15 +114,15 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
             previous_coord = pos_list[i - 1]
             next_coord = pos_list[i + 1] if i + 1 < len(pos_list) else None
 
-            neighbors: list[int] = []
+            neighbors: set[int] = set()
 
             # Only add next coordinate as neighbor if next coordinate exists.
             if next_coord:
-                neighbors.append(coord_to_id(next_coord, canal))
+                neighbors.add(coord_to_id(next_coord, canal))
 
             # Only add previous coordinates as neighbor if not one way traffic.
             if not oneway:  # FIXME: improve
-                neighbors.append(coord_to_id(previous_coord, canal))
+                neighbors.add(coord_to_id(previous_coord, canal))
 
             # Add connected canals using KDTree
             nearby_indices = kdtree.query_ball_point(current_coord, distance_tolerance)
@@ -131,13 +131,13 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
                 for other_canal, other_canal_id in coord_to_canal[other_coord]:
                     if other_canal == canal and other_coord == current_coord:
                         continue
-                    neighbors.append(
+                    neighbors.add(
                         coord_to_id(other_coord, other_canal)
                     )
 
             # Build graph node
             node_id = coord_to_id(current_coord, canal)
-            graph[node_id] = {"l": canal["properties"].get("name"), "p": round_coord(current_coord), "x": neighbors}
+            graph[node_id] = {"l": canal["properties"].get("name"), "p": round_coord(current_coord), "x": list(neighbors)}
 
     return graph
 
