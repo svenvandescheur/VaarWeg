@@ -2,7 +2,6 @@ import {createReactiveApp, STATE} from "./lib/reactive.module.js";
 import {findPath} from "./lib/findpath.module.js";
 
 const {setState, dispatch} = createReactiveApp("findpath.worker");
-const SYMBOL_GRAPH_NODE_KEY = Symbol("graph node key");
 
 /**
  * Worker message handler.
@@ -47,12 +46,9 @@ async function handleFetch(action) {
   // Construct locator names from keys.
   const locatorsSet = new Set()
   for (const key in graph.graph) {
-    const [locator, meta] = key.split('#');
-    const [id, coords] = meta.split(";")
-    graph.graph[key].l = key; // Optimization: key removed from node.
-    graph.graph[key].p = coords.split(",").map(parseFloat)  // Optimization: coordinates removed from node.
-    graph.graph[key].x = graph.graph[key].x.map(x => x.includes(";") ? x : `${locator}#${id};${x}`)  // Optimization: same canal neighbors more compact.
-    locatorsSet.add(locator)
+    const node = graph.graph[key];
+    node.k = key;
+    locatorsSet.add(graph.graph[key].l)
   }
 
   // FIXME: reduce nesting.
@@ -138,7 +134,7 @@ async function fetchFile(path, onProgress = () => null) {
  * @returns {string}
  */
 function computeKey(node) {
-  return `${node.l};${node.p.join(",")}`;
+  return node.k;
 }
 
 /**
@@ -151,15 +147,23 @@ function computeKey(node) {
  * @returns {GraphNode|undefined} The matching node object, or undefined if not found.
  */
 function findGraphNode(graph, partialName) {
-  const keyEntries = [...new Set(
-    Object.keys(graph.graph)
-      .map(k => k.split("#"))
-  )]
-  const keyEntry = keyEntries.find((ke => ke[0].toLowerCase() === partialName.toLowerCase()))
-    ?? keyEntries.find(ke => ke[0].toLowerCase().startsWith(partialName.toLowerCase()))
+  const q = partialName.toLowerCase()
+  const candidates = []
 
-  const key = keyEntry.join("#");
-  return graph.graph[key]
+  for (const key in graph.graph) {
+    const node = graph.graph[key]
+    const locator = node.l.toLowerCase()
+
+    if(locator === q) {
+      return node
+    }
+
+    if(locator.startsWith(q)) {
+      candidates.push(node)
+    }
+  }
+
+  return candidates.sort((a, b) => a.length - b.length)[0]
 }
 
 /**
@@ -261,7 +265,7 @@ async function handleCalculateRoute(action) {
     if (!link) return acc;
 
     const lastLinkName = acc.slice(-1)[0]?.linkName;
-    const linkName = link.split("#")[0];
+    const linkName = graphNode.l
 
     if (lastLinkName === linkName) {
       return acc;

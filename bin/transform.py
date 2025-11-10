@@ -27,12 +27,17 @@ def canal_to_id(canal: dict) -> str:
     return canal["_id"]
 
 
-def coord_to_id(coord: Tuple[float, float], canal: dict | None) -> str:
+coord_ids = {}
+
+
+def coord_to_id(coord: Tuple[float, float], canal: dict) -> int:
     """Create id for coordinate in canal."""
     rounded_coord = round_coord(coord)
-    if canal:
-        return f"{canal_to_id(canal)};{rounded_coord[0]},{rounded_coord[1]}"
-    return f"{rounded_coord[0]},{rounded_coord[1]}"
+    key = f"{canal_to_id(canal)};{rounded_coord[0]},{rounded_coord[1]}"
+
+    if not coord_ids.get(key):
+        coord_ids[key] = len(coord_ids)
+    return coord_ids[key]
 
 
 def round_coord(coord: Tuple[float, float], decimals: int = 5) -> Tuple[float, float]:
@@ -109,15 +114,15 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
             previous_coord = pos_list[i - 1]
             next_coord = pos_list[i + 1] if i + 1 < len(pos_list) else None
 
-            neighbors: list[str] = []
+            neighbors: list[int] = []
 
             # Only add next coordinate as neighbor if next coordinate exists.
             if next_coord:
-                neighbors.append(coord_to_id(next_coord, None))  # Optimization: same canal neighbors more compact.
+                neighbors.append(coord_to_id(next_coord, canal))
 
             # Only add previous coordinates as neighbor if not one way traffic.
             if not oneway:  # FIXME: improve
-                neighbors.append(coord_to_id(previous_coord, None))  # Optimization: same canal neighbors more compact.
+                neighbors.append(coord_to_id(previous_coord, canal))
 
             # Add connected canals using KDTree
             nearby_indices = kdtree.query_ball_point(current_coord, distance_tolerance)
@@ -132,9 +137,7 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
 
             # Build graph node
             node_id = coord_to_id(current_coord, canal)
-            # Optimization: key removed from node.
-            # Optimization: Optimization: coordinates removed from node.
-            graph[node_id] = {"x": neighbors}
+            graph[node_id] = {"l": canal["properties"].get("name"), "p": round_coord(current_coord), "x": neighbors}
 
     return graph
 

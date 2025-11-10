@@ -169,7 +169,7 @@ function render(state) {
           weight: 6
         }).addTo(map)
 
-        polyline.bindPopup(node.link?.split("#")[0])
+        polyline.bindPopup(node.graphNode.l)
         polylines.push(polyline);
 
         if (i === activePathIndex) {
