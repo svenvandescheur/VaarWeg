@@ -44,13 +44,19 @@ async function handleFetch(action) {
   const {graphSrc} = action.payload;
   const graph = await loadData(graphSrc)
 
-  const locators = {
-    locators: [...new Set(
-      Object.keys(graph.graph)
-        .map(k => k.split('#')[0])
-        .sort((a, b) => a.localeCompare(b))
-    )]
+  // Construct locator names from keys.
+  const locatorsSet = new Set()
+  for (const key in graph.graph) {
+    const [locator, meta] = key.split('#');
+    const [id, coords] = meta.split(";")
+    graph.graph[key].l = key; // Optimization: key removed from node.
+    graph.graph[key].p = coords.split(",").map(parseFloat)  // Optimization: coordinates removed from node.
+    graph.graph[key].x = graph.graph[key].x.map(x => x.includes(";") ? x : `${locator}#${id};${x}`)  // Optimization: same canal neighbors more compact.
+    locatorsSet.add(locator)
   }
+
+  // FIXME: reduce nesting.
+  const locators = {locators: [...locatorsSet].sort((a, b) => a.localeCompare(b))}
 
   setState({graph, locators})
   dispatch(action, {body: {locators}})
