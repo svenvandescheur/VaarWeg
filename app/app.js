@@ -141,7 +141,6 @@ function render(state) {
     statusText,
     title
   } = state;
-  const showDataWarning = !dataWarningSeen && !["localhost", "127.0.0.1"].includes(window.location.hostname)
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from") || ""
   const to = searchParams.get("to") || "";
