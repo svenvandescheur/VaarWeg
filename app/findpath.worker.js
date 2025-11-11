@@ -270,7 +270,7 @@ async function handleCalculateRoute(action) {
     if (lastLinkName === linkName) {
       return acc;
     }
-    return [...acc, {linkName, graphNodeName: i}]
+    return [...acc, {linkName, graphNodeIndex: i}]
   }, []) : []
 
   dispatch(action, path
