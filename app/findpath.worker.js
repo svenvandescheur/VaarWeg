@@ -41,40 +41,26 @@ async function handleFetch(action) {
 
   // From file.
   const {graphSrc} = action.payload;
-  const graph = await loadData(graphSrc)
+  const graph = await fetchFile(graphSrc)
+  const links = graph.links
+  setState({graph, locators: links})
 
-  // Construct locator names from keys.
-  const locatorsSet = new Set()
-  for (const key in graph.graph) {
-    const node = graph.graph[key];
-    node.k = key;
-    locatorsSet.add(graph.graph[key].l)
+  const graphStr = graph.graph;
+  const graphNodes = graphStr.split("#")
+
+  graph.graph = {}
+  for (const dataStr of graphNodes) {
+    const [key, link, position, neighbors] = dataStr.split(";")
+    graph.graph[key] = {
+      k: key,
+      link: links[parseInt(link)],
+      position: position.split(","),
+      neighbors: neighbors.split(",")
+    }
   }
 
   // FIXME: reduce nesting.
-  const locators = {locators: [...locatorsSet].sort((a, b) => a.localeCompare(b))}
-
-  setState({graph, locators})
-  dispatch(action, {body: {locators}})
-}
-
-/**
- * Returns JSON parsed data for entry and possibly related chunks.
- * @param {string} src
- * @returns {Promise<Object>}
- */
-async function loadData(src) {
-  const data = await fetchFile(src)
-
-  if ("chunks" in data && "chunkTarget" in data && Array.isArray(data.chunks)) {
-    const path = src.split("/");
-    const filename = path.pop();
-    const promises = data.chunks.map(chunk => fetchFile(path.join("/") + "/" + chunk).then(text => text))
-    const chunks = await Promise.all(promises)
-    data[data.chunkTarget] = chunks.reduce((acc, val) => ({...acc, ...val}), {})
-    return data
-  }
-  return data
+  dispatch(action, {body: {locators: {locators: links}}})
 }
 
 /**
@@ -101,12 +87,22 @@ async function loadData(src) {
 async function fetchFile(path, onProgress = () => null) {
   // FIXME FIXME FIXME: after 71af1fc2bb5ffd33a285185b9d95ccdb78d04bad progress is broken.
   const response = await fetch(path);
-
   const contentLength = response.headers.get("Content-Length");
+  const contentType = response.headers.get("Content-Type");
+
+  let stream = response.body;
+
+  // If gzip, decompress
+  if (contentType.includes("gzip")) {
+    const ds = new DecompressionStream("gzip");
+    stream = stream.pipeThrough(ds);
+  }
+
+
   const total = contentLength ? parseInt(contentLength) : null;
   let loaded = 0;
 
-  const reader = response.body.getReader();
+  const reader = stream.getReader();
   const chunks = [];
 
   while (true) {
@@ -152,13 +148,13 @@ function findGraphNode(graph, partialName) {
 
   for (const key in graph.graph) {
     const node = graph.graph[key]
-    const locator = node.l.toLowerCase()
+    const locator = node.link.toLowerCase()
 
-    if(locator === q) {
+    if (locator === q) {
       return node
     }
 
-    if(locator.startsWith(q)) {
+    if (locator.startsWith(q)) {
       candidates.push(node)
     }
   }
@@ -170,8 +166,8 @@ function findGraphNode(graph, partialName) {
  * Compute distance between nodes (Haversine)
  */
 function computeDistance(node1, node2, order = "lonlat") {
-  const [a0, a1] = node1.p.map(Number);
-  const [b0, b1] = node2.p.map(Number);
+  const [a0, a1] = node1.position.map(Number);
+  const [b0, b1] = node2.position.map(Number);
 
   let lat1, lon1, lat2, lon2;
   if (order === "lonlat") {
@@ -199,7 +195,8 @@ function computeDistance(node1, node2, order = "lonlat") {
  * Return neighbors of a node.
  */
 function findNeighbours(graph, node) {
-  return node.x.map(id => graph.graph[id]);
+  const result = node.neighbors.map(id => graph.graph[id]);
+  return result
 }
 
 /**
@@ -215,11 +212,11 @@ function reconstructRenderablePath(graph, cameFrom, current) {
     const prevNode = graphNode;
     graphNode = cameFrom[computeKey(graphNode)];
     if (graphNode) {
-      link = prevNode.x.find(neighborId => computeKey(graph.graph[neighborId]) === computeKey(graphNode));
+      link = prevNode.neighbors.find(neighborId => computeKey(graph.graph[neighborId]) === computeKey(graphNode));
     }
   }
 
-  return path.map(n => ({...n, graphNode: {...n.graphNode, p: n.graphNode.p.slice().reverse()}}));
+  return path.map(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse()}}));
 }
 
 /**
@@ -228,7 +225,6 @@ function reconstructRenderablePath(graph, cameFrom, current) {
 async function handleCalculateRoute(action) {
   const {from, to} = action.payload;
   const graph = STATE.graph;
-
 
   dispatch(action, {status: 102, statusText: `Resolving nodes`});
   const start = findGraphNode(graph, from);
@@ -265,7 +261,7 @@ async function handleCalculateRoute(action) {
     if (!link) return acc;
 
     const lastLinkName = acc.slice(-1)[0]?.linkName;
-    const linkName = graphNode.l
+    const linkName = graphNode.link
 
     if (lastLinkName === linkName) {
       return acc;

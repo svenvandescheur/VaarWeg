@@ -6,12 +6,46 @@ import sys
 from datetime import datetime
 from itertools import count
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, TypedDict
 
 from scipy.spatial import KDTree
 from tqdm import tqdm
 
 canal_id_gen = count()
+
+
+class GraphNode(TypedDict):
+    """
+    Graph node in an (unoptimized) GraphDocument
+    """
+    link: str
+    position: tuple[float, float]
+    neighbors: list[int]
+
+
+GraphNodeDict = dict[str, GraphNode]
+
+
+class GraphDocument(TypedDict):
+    """
+    Graph document without optimization.
+    """
+    name: str
+    createdAt: str
+    schemaVersion: float
+    graph: GraphNodeDict
+
+
+class OptimizedGraphDocument(TypedDict):
+    """
+    Graph document with optimization.
+    """
+
+    name: str
+    createdAt: str
+    schemaVersion: float
+    graph: str
+    links: list[str]
 
 
 def canal_to_id(canal: dict) -> str:
@@ -82,7 +116,7 @@ def load_data(input_file: Path) -> dict:
 
 
 def compile_data(data: dict, distance_tolerance: float) -> dict:
-    graph = {}
+    graph_node_dict = GraphNodeDict()
 
     # Filter dataset to only include features with names
     canals = [f for f in data["features"] if f["properties"].get("name")]
@@ -105,7 +139,6 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
 
     # Loop through canals
     for canal in tqdm(canals):
-        canal_id = canal_to_id(canal)
         pos_list = get_canal_pos_list(canal)
         properties = canal["properties"]
         oneway = bool(properties.get("oneway"))
@@ -137,9 +170,13 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
 
             # Build graph node
             node_id = coord_to_id(current_coord, canal)
-            graph[node_id] = {"l": canal["properties"].get("name"), "p": round_coord(current_coord), "x": list(neighbors)}
+            graph_node_dict[node_id] = GraphNode(
+                link=canal["properties"].get("name"),
+                position=round_coord(current_coord),
+                neighbors=list(neighbors),
+            )
 
-    return graph
+    return graph_node_dict
 
 
 canal_pos_list_cache = {}
@@ -178,19 +215,41 @@ def get_canal_pos_list(canal: dict) -> list[Tuple[float, float]]:
 
 def save_output(graph: dict, graph_file: Path) -> None:
     """Save graph and links to JSON files."""
-    graph_output = {
-        "name": str(graph_file),
-        "createdAt": datetime.utcnow().isoformat(),
-        "schemaVersion": 1.0,
-        "graph": graph,
-    }
-
     try:
         with graph_file.open("w") as f:
-            json.dump(graph_output, f, indent=2)
+            json.dump(graph, f, indent=2)
     except Exception as e:
         sys.stderr.write(f"Error writing output files: {e}\n")
         sys.exit(1)
+
+
+def optimize_graph(document: GraphDocument) -> OptimizedGraphDocument:
+    links = []
+    data_strs = []
+
+    for key in tqdm(document["graph"]):
+        node = document["graph"][key]
+        link = node["link"]
+
+        if link not in links:
+            links.append(link)
+
+        key_str = str(key)
+        link_str = str(links.index(link))
+        position_str = ",".join(map(str, node["position"]))
+        neighbor_str = ",".join(map(str, node["neighbors"]))
+        data_str = ";".join([key_str, link_str, position_str, neighbor_str])
+
+        data_strs.append(data_str)
+    graph_str = "#".join(data_strs)
+
+    return OptimizedGraphDocument(
+        name=document["name"],
+        createdAt=document["createdAt"],
+        schemaVersion=document["schemaVersion"],
+        graph=graph_str,
+        links=links,
+    )
 
 
 def main():
@@ -201,7 +260,15 @@ def main():
 
     data = load_data(input_file)
     graph = compile_data(data, args.dist_tolerance)
-    save_output(graph, graph_file)
+
+    graph_document: GraphDocument = {
+        "name": str(graph_file),
+        "createdAt": datetime.utcnow().isoformat(),
+        "schemaVersion": 1.0,
+        "graph": graph,
+    }
+    optimize_graph_document: OptimizedGraphDocument = optimize_graph(graph_document)
+    save_output(optimize_graph_document, graph_file)
 
     print(f"Graph saved to {graph_file}")
 

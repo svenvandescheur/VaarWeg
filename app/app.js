@@ -3,7 +3,6 @@ import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 import "./components/index.js"
 
 const {setState, dispatch} = createReactiveApp("app", render, {
-  dataWarningSeen: localStorage.getItem("VaarWeg.dataWarningSeen")?.toLowerCase() === "true",
   title: "VaarWeg",
   status: 102,
   statusText: "Loading",
@@ -129,7 +128,6 @@ function handleCalculateRouteResponse(action) {
 function render(state) {
   const sidebar = document.getElementById("sidebar");
   const {
-    dataWarningSeen,
     locators,
     map,
     path,
@@ -161,8 +159,8 @@ function render(state) {
       const even = i % 2 === 0;
 
       if (nextNode) {
-        const sectionStart = node.graphNode.p
-        const sectionEnd = nextNode.graphNode.p
+        const sectionStart = node.graphNode.position
+        const sectionEnd = nextNode.graphNode.position
         const polyline = L.polyline([sectionStart, sectionEnd], {
           color: even ? 'cornflowerblue' : 'cornflowerblue',
           weight: 6
@@ -184,10 +182,6 @@ function render(state) {
   sidebar.innerHTML = `
     <header>
       <ui-heading>${title}</ui-heading>
-      ${dataWarningSeen ? '' :  `<ui-alert level="warning">
-          <ui-text>VaarWeg is data-intensief, houd rekening met dataverbruik wanneer je deze pagina opent via een mobiele verbinding.</ui-text>
-          <ui-text slot="translation" size="s" lang="en">VaarWeg is data intensive, please consider data usage when opening this page on a mobile connection.</ui-text>
-      </ui-alert>`}
     </header>
 
 <!--    <section>-->
@@ -226,18 +220,6 @@ function initMap() {
  * Sets up events for the toolbar, input values are synced to state.
  */
 function initEvents() {
-  const handleClick = (e) => {
-    handleAlertClick(e);
-  }
-
-  const handleAlertClick = (e) => {
-    if (e.target.tagName !== "UI-ALERT") return
-
-    setState({dataWarningSeen: true})
-    localStorage.setItem("VaarWeg.dataWarningSeen", "true")
-  }
-
-
   const handleSubmit = (e) => {
     e.preventDefault()
 
@@ -258,7 +240,6 @@ function initEvents() {
   }
 
   document.addEventListener("submit", handleSubmit);
-  document.addEventListener("click", handleClick);
   document.addEventListener("graphNodeSelect", handleGraphNodeSelect);
 }
 
@@ -268,7 +249,7 @@ function initEvents() {
  */
 
 async function main() {
-  dispatchFetch("./assets/nl_graph.json");
+  dispatchFetch("./assets/nl_graph.json.gz");
   initMap()
   initEvents();
 }
