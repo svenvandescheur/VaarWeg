@@ -77,16 +77,18 @@ class Alert extends HTMLElement {
     const css = `
       :host {
           --alert-color: gray;
-          --alert-info-color: cornflowerblue;
-          --alert-success-color: green;
-          --alert-warning-color: orange;
-          --alert-danger-color: red;
+          --alert-info-color: var(--ui-color-info, cornflowerblue);
+          --alert-success-color: var(--ui-color-success, green);
+          --alert-warning-color: var(--ui-color-warning, orange);
+          --alert-danger-color: var(--ui-color-danger, red);
+          --alert-spacing: var(--ui-spacing-m, 0.5rem);
+
       }
 
       .ui-alert {
           border: 1px solid var(--alert-color);
           box-sizing: border-box;
-          padding: 0.5rem;
+          padding: var(--alert-spacing);
           position: relative;
       }
 
@@ -123,9 +125,9 @@ class Alert extends HTMLElement {
 
       .ui-alert__translation {
           border-block-start: 1px solid var(--alert-color);
-          padding-block-start: 0.5rem;
+          padding-block-start: var(--alert-spacing);
           margin: 0;
-          margin-block-start: 0.5rem;
+          margin-block-start: var(--alert-spacing);
       }
     `;
 

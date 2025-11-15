@@ -51,7 +51,8 @@ class Statusbar extends HTMLElement {
     /** Inline CSS styles for the <ui-statusbar> component */
     const css = `
       :host {
-        --statusbar-color-border: gainsboro;
+        --statusbar-color-border: var(--ui-color-border, gainsboro);
+        --statusbar-spacing: var(--ui-spacing-m, 0.5rem);
       }
 
       .ui-statusbar {
@@ -59,7 +60,7 @@ class Statusbar extends HTMLElement {
           box-sizing: border-box;
           display: flex;
           justify-content: space-between;
-          padding: 0.5rem 0;
+          padding: var(--statusbar-spacing) 0;
 
           &:last-child {
             border-block-end: none;

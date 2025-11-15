@@ -3,7 +3,7 @@
  *
  * Renders an input element with configurable variant styling.
  * Supported variants: secondary (default), primary, link.
- * Uses an open Shadow DOM with inline styles for encapsulation.
+ * Uses light DOM (no shadow) so inputs, buttons, and submission work naturally.
  */
 class Input extends HTMLElement {
   /** Attributes observed for changes that trigger re-rendering */
@@ -53,7 +53,7 @@ class Input extends HTMLElement {
   }
 
   /**
-   * Renders the component inside the shadow root.
+   * Renders the component inside the custom element.
    * Updates variant styling and forwards attributes to the inner input.
    * Applies inline CSS for consistent appearance.
    */
@@ -61,16 +61,47 @@ class Input extends HTMLElement {
     /** Inline styles for the input element */
     const css = `
       ui-input {
-        --input-color-border: gray;
+        --input-active-background: var(--ui-color-background, white);
+        --input-active-border: var(--ui-color-primary, cornflowerblue);
+        --input-active-scale: var(--ui-scale-factor, 1);
+        --input-default-background: var(--ui-background-muted, white);
+        --input-default-border: var(--ui-color-secondary, gray);
+        --input-default-scale: 1;
+        --input-background: var(--input-default-background);
+        --input-border: var(--input-default-border);
+        --input-border-radius: var(--ui-border-radius-s, 0);
+        --input-scale: var(--input-default-scale);
+        --input-font-family: var(--ui-font-family-body, sans-serif);
+        --input-font-size: var(--ui-font-size-body, 0.75rem);
+        --input-font-weight: var(--ui-font-weight-body, 100);
+        --input-spacing: var(--ui-spacing-m, 0.5rem);
+        --input-transition: var(--ui-transition, none);
       }
 
       .ui-input {
           -webkit-appearance: none;
           appearance: none;
-          border: 1px solid var(--input-color-border);
+          background: var(--input-background);
+          border: none;
+          border-block-end: 1px solid var(--input-border);
+          border-radius: var(--input-border-radius);
           box-sizing: border-box;
+          font-family: var(--input-font-family);
+          font-size: var(--input-font-size);
+          font-weight: var(--input-font-weight);
           height: 2rem;
+          line-height: 1.5;
+          padding: var(--input-spacing);
+          transition: var(--input-transition);
+          transform: scale(var(--input-scale));
+          outline: none;
           width: 100%;
+
+          &:focus {
+            --input-background: var(--input-active-background);
+            --input-border: var(--input-active-border);
+            --input-scale: var(--input-active-scale);
+          }
       }
     `;
 

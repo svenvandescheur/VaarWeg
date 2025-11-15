@@ -1,5 +1,6 @@
 export * from './alert/index.js';
 export * from './button/index.js';
+export * from './card/index.js';
 export * from './form/index.js';
 export * from './formcontrol/index.js';
 export * from './heading/index.js';

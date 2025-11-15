@@ -16,7 +16,7 @@ class plan extends HTMLElement {
   constructor() {
     super();
     /** @private @type {ShadowRoot} Shadow root instance for encapsulation */
-    this.node = this.attachShadow({ mode: "open" });
+    this.node = this.attachShadow({mode: "open"});
     Object.freeze(this.node);
 
     /** @private @type {Function[]} Functions to remove attached event listeners */
@@ -45,13 +45,13 @@ class plan extends HTMLElement {
     this._removeListeners.forEach(remove => remove());
     this._removeListeners = [];
 
-    this.plan.forEach(({ graphNodeIndex }) => {
+    this.plan.forEach(({graphNodeIndex}) => {
       const button = this.node.getElementById(`vw-plan-${graphNodeIndex}`);
       if (!button) return;
 
       const handler = () => {
         this.dispatchEvent(new CustomEvent("graphNodeSelect", {
-          detail: { graphNodeId: parseInt(graphNodeIndex, 10) },
+          detail: {graphNodeId: parseInt(graphNodeIndex, 10)},
           bubbles: true,
           composed: true
         }));
@@ -103,21 +103,27 @@ class plan extends HTMLElement {
     const css = `
       :host {
         display: contents;
+        --plan-font-family: var(--ui-font-family-body, sans-serif);
+        --plan-font-size: var(--ui-font-size-body, 0.75rem);
+        --plan-font-weight: var(--ui-font-weight-body, 100);
+        --plan-spacing: var(--ui-spacing-m, 0.5rem);
       }
 
       .vw-plan {
           height: 100%;
-          overflow: auto;
+          overflow-x: hidden;
+          overflow-y: auto;
       }
 
       .vw-plan__list {
-          margin: 0.5rem 0;
+          margin: var(--plan-spacing) 0;
       }
 
       .vw-plan__list-item {
-          font-family: Tahoma;
-          font-size: 12px;
-          line-height: 1.5;
+        font-family: var(--plan-font-family);
+        font-size: var(--plan-font-size);
+        font-weight: var(--plan-font-weight);
+        line-height: 1.5;
       }
 
       .vw-plan__list-item .button {
@@ -129,7 +135,7 @@ class plan extends HTMLElement {
       <style>${css}</style>
       <div class="vw-plan">
         <ol class="vw-plan__list">
-          ${this.plan.map(({ linkName, graphNodeIndex }) => `
+          ${this.plan.map(({linkName, graphNodeIndex}) => `
           <li class="vw-plan__list-item">
             <ui-button variant="link" id="vw-plan-${graphNodeIndex}">${linkName}</ui-button>
           </li>`).join("")}

@@ -60,21 +60,24 @@ class Heading extends HTMLElement {
     /** Inline CSS for the heading component */
     const css = `
       :host {
-        --heading-color-text: cornflowerblue;
+        --heading-color-text: var(--ui-color-primary, cornflowerblue);
+        --heading-font-family: var(--ui-font-family-heading, Arial);
+        --heading-font-weight: var(--ui-font-weight-heading, 100);
       }
 
 
       .ui-heading {
           color: var(--heading-color-text);
-          font-family: 'Brush Script MT', 'Comic Sans MS', cursive;
+          font-family: var(--heading-font-family);
           font-size: 2rem;
+          font-weight: var(--heading-font-weight);
           margin: 0;
       }
     `;
 
     this.node.innerHTML = `
       <style>${css}</style>
-      <h${this.level} class="ui-heading" ${this.attrs}><slot></slot></h${this.level}>
+      <h${this.level} class="ui-heading ui-heading--${this.level}" ${this.attrs}><slot></slot></h${this.level}>
     `;
   }
 }

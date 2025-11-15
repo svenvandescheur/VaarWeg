@@ -127,6 +127,8 @@ function handleCalculateRouteResponse(action) {
  */
 function render(state) {
   const sidebar = document.getElementById("sidebar");
+  const sidebarWidth = sidebar.clientWidth;
+
   const {
     locators,
     map,
@@ -166,25 +168,24 @@ function render(state) {
           weight: 6
         }).addTo(map)
 
-        polyline.bindPopup(node.graphNode.l)
+        polyline.bindPopup(node.graphNode.link)
         polylines.push(polyline);
 
         if (i === activePathIndex) {
-          map.fitBounds(polyline.getBounds())
+          map.fitBounds(polyline.getBounds(), {padding: [0,0,0, sidebarWidth]})
         }
       }
     }
 
     const featureGroup = L.featureGroup(polylines);
-    if (activePathIndex === null) map.fitBounds(featureGroup.getBounds())
+    if (activePathIndex === null) map.fitBounds(featureGroup.getBounds(), {padding: [0,0,0, sidebarWidth]})
   }
 
   sidebar.innerHTML = `
-    <header>
-      <ui-heading>${title}</ui-heading>
-    </header>
+<!--    <header>-->
+<!--      <ui-heading>${title}</ui-heading>-->
+<!--    </header>-->
 
-<!--    <section>-->
     <ui-form method="get" action="./">
       <ui-form-control label="Van" name="from" value="${from}" list="locators" placeholder="🏠" required></ui-form-control>
       <ui-form-control label="Naar" name="to" value="${to}" list="locators" placeholder="🏁" required></ui-form-control>
@@ -192,12 +193,11 @@ function render(state) {
       <ui-button variant="primary" type="submit"${status < 200 ? " disabled" : ""}>${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}</ui-button>
     </ui-form>
 
-    <vw-plan plan="${plan && encodeURIComponent(JSON.stringify(plan, undefined, false))}"></vw-plan>
-<!--    </section>-->
+    ${plan?.length ? `<vw-plan plan="${encodeURIComponent(JSON.stringify(plan, undefined, false))}"></vw-plan>` : ''}
 
     <footer>
     <ui-statusbar>
-      <ui-text size>Status: ${statusText}</ui-text>
+      <ui-text size="s">Status: ${statusText}</ui-text>
       ${ready ? '' : `<ui-progressbar value="${progress}" title="${progress}%"/>`}
     </ui-statusbar>
     </footer>
@@ -208,10 +208,15 @@ function render(state) {
  * TODO: OFFLINE MAP?
  */
 function initMap() {
-  var map = L.map('map').setView([52.3676, 4.9041], 13);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
+  const map = L.map('map', {zoomControl: false}).setView([52.3676, 4.9041], 13);
+  L.control.zoom({
+    position: 'bottomright'
+}).addTo(map);
+  L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.{ext}', {
+    minZoom: 0,
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    ext: 'png'
   }).addTo(map);
   setState({map: map})
 }

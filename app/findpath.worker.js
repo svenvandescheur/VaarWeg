@@ -39,9 +39,25 @@ async function handleFetch(action) {
     return;
   }
 
+    /**
+   * @param progressEvent
+   */
+  const handleProgress = (progressEvent) => {
+    dispatch(action, {
+      status: 102, statusText: "Downloading map",
+      body: {
+        progress: {
+          lengthComputable: progressEvent.lengthComputable,
+          loaded: progressEvent.loaded,
+          total: progressEvent.total,
+        }
+      }
+    });
+  }
+
   // From file.
   const {graphSrc} = action.payload;
-  const graph = await fetchFile(graphSrc)
+  const graph = await fetchFile(graphSrc, handleProgress)
   const links = graph.links
   setState({graph, locators: links})
 
@@ -195,7 +211,7 @@ function computeDistance(node1, node2, order = "lonlat") {
  * Return neighbors of a node.
  */
 function findNeighbours(graph, node) {
-  const result = node.neighbors.map(id => graph.graph[id]);
+  const result = node.neighbors.map(id => graph.graph[id]).filter(Boolean);
   return result
 }
 

@@ -46,7 +46,7 @@ Gebruik het Python transform-script om de gefilterde JSON-data om te zetten naar
 ``` 
 
 Na deze stappen is de dataset up-to-date en direct bruikbaar door **VaarWeg**. Standaard zoekt de app naar
-`nl_graph.json` in de `assets` map.
+`nl_graph.json.gz` in de `assets` map.
 
 ## 📜 Bronvermelding
 

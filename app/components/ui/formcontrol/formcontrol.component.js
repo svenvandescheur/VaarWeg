@@ -3,7 +3,7 @@
  *
  * Wraps an input element with a label and configurable variant styling.
  * Automatically forwards attributes to the inner <ui-input>.
- * Uses an open Shadow DOM with inline styles for encapsulation.
+ * Uses light DOM (no shadow) so inputs, buttons, and submission work naturally.
  */
 class FormControlComponent extends HTMLElement {
   /** Attributes observed for changes that trigger re-rendering */
@@ -11,7 +11,6 @@ class FormControlComponent extends HTMLElement {
 
   /**
    * Initializes the component.
-   * Attaches an open shadow root and performs the initial render.
    * @constructor
    */
   constructor() {
@@ -58,7 +57,7 @@ class FormControlComponent extends HTMLElement {
   }
 
   /**
-   * Renders the component inside the shadow root.
+   * Renders the component inside the custom element.
    * Wraps the input in a labeled container, forwards attributes, and applies inline styles.
    */
   render() {
@@ -66,14 +65,13 @@ class FormControlComponent extends HTMLElement {
     const css = `
       ui-form-control {
         display: contents;
+        --form-control-spacing: var(--ui-spacing-m, 0.5rem);
       }
 
       .ui-form-control {
           align-items: center;
           display: flex;
-          font-family: Tahoma;
-          font-size: 12px;
-          gap: 0.5rem;
+          gap: var(--form-control-spacing);
           height: 2rem;
           justify-content: space-between;
           width: 100%;
@@ -86,7 +84,10 @@ class FormControlComponent extends HTMLElement {
 
     this.innerHTML = `
       <style>${css}</style>
-      <label class="ui-form-control">${this.label}: <ui-input list="locators" name="${this.name}" value="${this.value}" ${this.attrs}/></label>
+        <label class="ui-form-control">
+        <ui-text>${this.label}:</ui-text>
+        <ui-input list="locators" name="${this.name}" value="${this.value}" ${this.attrs}/>
+      </label>
     `;
   }
 }

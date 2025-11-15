@@ -72,7 +72,16 @@ class Form extends HTMLElement {
       const style = document.createElement("style");
       style.textContent = `
         ui-form {
-          --form-color-border: gainsboro;
+          --form-color-border: var(--ui-color-border, gainsboro);
+          --form-spacing: var(--ui-spacing-m, 0.5rem);
+
+            &:first-child .ui-form {
+              border-block-start: none;
+            }
+
+            &:last-child .ui-form {
+              border-block-end: none;
+            }
         }
 
         .ui-form {
@@ -80,10 +89,10 @@ class Form extends HTMLElement {
           border-block: 1px solid var(--form-color-border);
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: var(--form-spacing);
           justify-content: stretch;
           margin: 0;
-          padding: 0.5rem 0;
+          padding: var(--form-spacing) 0;
         }
       `;
       form.appendChild(style);
@@ -96,7 +105,8 @@ class Form extends HTMLElement {
 
       this.appendChild(form);
       this.form = form;
-    } else {}
+    } else {
+    }
 
     // Always update attributes on re-render
     this.updateFormAttrs();

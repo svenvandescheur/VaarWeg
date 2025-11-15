@@ -75,8 +75,11 @@ def coord_to_id(coord: Tuple[float, float], canal: dict) -> int:
 
 
 def round_coord(coord: Tuple[float, float], decimals: int = 5) -> Tuple[float, float]:
-    """Round coordinate tuple to given decimals."""
-    return [round(coord[0], decimals), round(coord[1], decimals)]
+    """
+    Round a coordinate tuple to `decimals` decimal places and return as a tuple.
+    Returning a tuple ensures stable, hashable keys for dictionaries.
+    """
+    return (round(coord[0], decimals), round(coord[1], decimals))
 
 
 def parse_args() -> argparse.Namespace:
@@ -116,35 +119,47 @@ def load_data(input_file: Path) -> dict:
 
 
 def compile_data(data: dict, distance_tolerance: float) -> dict:
-    graph_node_dict = GraphNodeDict()
+    """
+    Build graph nodes from input features. Uses rounded coordinates for KDTree and id mapping
+    to ensure consistent matching between KDTree neighbors and coord_to_id keys.
+    """
+    graph_node_dict: dict = {}
 
     # Filter dataset to only include features with names
-    canals = [f for f in data["features"] if f["properties"].get("name")]
+    canals = [f for f in data["features"] if f.get("properties", {}).get("name")]
 
     # Build KDTree to quickly filter nearby points
-    all_coords = []
-    coord_to_canal = {}
+    all_coords: list[Tuple[float, float]] = []
+    coord_to_canal: dict[Tuple[float, float], list[Tuple[dict, str]]] = {}
 
     for canal in canals:
-        pos_list = [tuple(coord) for coord in get_canal_pos_list(canal) if coord]
+        pos_list = get_canal_pos_list(canal)
         canal_id = canal_to_id(canal)
 
         for coord in pos_list:
-            all_coords.append(coord)
-            if coord not in coord_to_canal:
-                coord_to_canal[coord] = []
-            coord_to_canal[coord].append((canal, canal_id))
+            if not coord:
+                continue
+            rounded = round_coord(coord)
+            all_coords.append(rounded)
+            coord_to_canal.setdefault(rounded, []).append((canal, canal_id))
+
+    if not all_coords:
+        return graph_node_dict
 
     kdtree = KDTree(all_coords)
 
-    # Loop through canals
+    # Loop through canals and build nodes
     for canal in tqdm(canals):
         pos_list = get_canal_pos_list(canal)
-        properties = canal["properties"]
+        properties = canal.get("properties", {}) or {}
         oneway = bool(properties.get("oneway"))
 
         for i, current_coord in enumerate(pos_list):
-            previous_coord = pos_list[i - 1]
+            if not current_coord:
+                continue
+
+            # previous_coord is None at start (avoid pos_list[-1] bug)
+            previous_coord = pos_list[i - 1] if i > 0 else None
             next_coord = pos_list[i + 1] if i + 1 < len(pos_list) else None
 
             neighbors: set[int] = set()
@@ -153,25 +168,27 @@ def compile_data(data: dict, distance_tolerance: float) -> dict:
             if next_coord:
                 neighbors.add(coord_to_id(next_coord, canal))
 
-            # Only add previous coordinates as neighbor if not one way traffic.
-            if not oneway:  # FIXME: improve
+            # Only add previous coordinate as neighbor if not oneway and previous exists.
+            if not oneway and previous_coord:
                 neighbors.add(coord_to_id(previous_coord, canal))
 
-            # Add connected canals using KDTree
-            nearby_indices = kdtree.query_ball_point(current_coord, distance_tolerance)
+            # Use rounded current_coord for KDTree lookup and mapping
+            rounded_current = round_coord(current_coord)
+            nearby_indices = kdtree.query_ball_point(rounded_current, distance_tolerance)
             for idx in nearby_indices:
                 other_coord = all_coords[idx]
-                for other_canal, other_canal_id in coord_to_canal[other_coord]:
-                    if other_canal == canal and other_coord == current_coord:
+                for other_canal, other_canal_id in coord_to_canal.get(other_coord, []):
+                    # skip exact same (canal + coordinate)
+                    if other_canal is canal and other_coord == rounded_current:
                         continue
-                    neighbors.add(
-                        coord_to_id(other_coord, other_canal)
-                    )
+                    # Note: use the original other_canal object when generating ids
+                    # but pass a coordinate that matches coord_to_id rounding expectations
+                    neighbors.add(coord_to_id(other_coord, other_canal))
 
             # Build graph node
             node_id = coord_to_id(current_coord, canal)
             graph_node_dict[node_id] = GraphNode(
-                link=canal["properties"].get("name"),
+                link=canal.get("properties", {}).get("name"),
                 position=round_coord(current_coord),
                 neighbors=list(neighbors),
             )

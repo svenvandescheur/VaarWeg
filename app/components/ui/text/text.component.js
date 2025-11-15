@@ -62,11 +62,16 @@ class Text extends HTMLElement {
     const css = `
       :host {
         display: contents;
+        --text-font-family: var(--ui-font-family-body, sans-serif);
+        --text-font-size: var(--ui-font-size-body, 0.75rem);
+        --text-font-weight: var(--ui-font-weight-body, 100);
       }
 
       .ui-text {
-        font-family: Tahoma;
-        font-size: 12px;
+        text-shadow: 1px solid green;
+        font-family: var(--text-font-family);
+        font-size: var(--text-font-size);
+        font-weight: var(--text-font-weight);
         line-height: 1.5;
       }
 

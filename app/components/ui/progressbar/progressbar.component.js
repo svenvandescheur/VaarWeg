@@ -70,9 +70,10 @@ class Progressbar extends HTMLElement {
     /** Inline CSS for the progressbar component */
     const css = `
       :host {
-        --progressbar-color-bar: lightgray;
-        --progressbar-color-value: cornflowerblue;
-        --progressbar-color-border: gray;
+        --progressbar-border-radius: var(--ui-border-radius-s, 0);
+        --progressbar-color-bar: var(--ui-color-muted, lightgray);
+        --progressbar-color-value: var(--ui-color-primary, cornflowerblue);
+        --progressbar-color-border: var(--ui-color-muted-contrast, gray);
       }
 
       .ui-progressbar {
@@ -85,6 +86,7 @@ class Progressbar extends HTMLElement {
       .ui-progressbar::-webkit-progress-bar {
           background-color: var(--progressbar-color-bar);
           border: 1px solid var(--progressbar-color-border);
+          border-radius: var(--progressbar-border-radius);
           box-sizing: border-box;
       }
 

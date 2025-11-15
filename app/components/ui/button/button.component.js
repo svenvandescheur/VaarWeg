@@ -104,28 +104,48 @@ class Button extends HTMLElement {
     /** Inline CSS for the button component */
     const css = `
       :host {
-        --button-color-background: gray;
-        --button-color-text: white;
-        --button-primary-color-background: cornflowerblue;
-        --button-primary-color-text: white;
-        --button-link-color-text: var(--button-primary-color-background);
-        --button-disabled-color-background: lightgray;
-        --button-disabled-color-text: gray;
+        --button-default-scale: 1;
+        --button-focussed-scale: var(--ui-scale-factor, 1);
+        --button-focussed-link-scale: 1;
+        --button-pressed-scale: var(calc(1 / var(--ui-scale-factor)), 1);
+        --button-pressed-link-scale: 1;
+        --button-scale: var(--button-default-scale);
+        --button-border-radius: var(--ui-border-radius-s, 0);
+        --button-color-background: var(--ui-color-secondary, gray);
+        --button-color-text: var(--ui-color-secondary-contrast, white);
+        --button-primary-color-background: var(--ui-color-primary, cornflowerblue);
+        --button-primary-color-text: var(--ui-color-primary-contrast, white);
+        --button-link-color-text: inherit;
+        --button-disabled-color-background: var(--ui-color-muted, lightgray);
+        --button-disabled-color-text: var(--ui-color-muted-contrast, gray);
+        --button-spacing: var(--ui-spacing-m, 0.5rem);
+        --button-transition: var(--ui-transition, none);
+
       }
 
       .ui-button {
         appearance: none;
         background-color: var(--button-color-background);
         border: none;
+        border-radius: var(--button-border-radius);
         color: var(--button-color-text);
         cursor: pointer;
-        font-family: Tahoma;
-        font-size: 12px;
         height: 2rem;
         margin: 0;
         min-width: 12rem;
-        padding: 0 1rem;
+        padding: 0 var(--button-spacing);
+        transform: scale(var(--button-scale));
+        transition: var(--button-transition);
         width: 100%;
+
+        &:not(:disabled):focus,
+        &:not(:disabled):hover {
+          --button-scale: var(--button-focussed-scale);
+        }
+
+        &:not(:disabled):active {
+          --button-scale: var(--button-pressed-scale);
+        }
       }
 
       .ui-button--variant-primary {
@@ -143,6 +163,17 @@ class Button extends HTMLElement {
         padding: unset;
         text-align: start;
         text-decoration: underline;
+
+        &:not(:disabled):focus,
+        &:not(:disabled):hover {
+          --button-scale: var(--button-focussed-link-scale);
+          text-decoration: none;
+        }
+
+        &:not(:disabled):active {
+          --button-scale: var(--button-focussed-link-scale);
+          text-decoration: none;
+        }
       }
 
       .ui-button:disabled {
@@ -155,7 +186,7 @@ class Button extends HTMLElement {
     this.node.innerHTML = `
       <style>${css}</style>
       <button class="ui-button ui-button--variant-${this.variant}" type="${this.type}" ${this.attrs}>
-        <slot></slot>
+        <ui-text><slot></slot></ui-text>
       </button>
     `;
   }
