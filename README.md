@@ -1,4 +1,5 @@
-# VaarWeg
+# [VaarWeg](https://svenvandescheur.github.io/VaarWeg/)
+
 
 **VaarWeg** is een eenvoudige routeplanner voor boten.  
 Met deze app kun je snel een vaarroute uitzetten op een kaart.  
