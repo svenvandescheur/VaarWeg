@@ -72,7 +72,9 @@ function handleFetchResponse(action) {
       status: action.result.status,
       statusText: action.result.statusText,
       ready: false,
-      progress: action.result.body.progress.loaded / action.result.body.progress.total * 100
+      progress: action.result.body.progress
+        ? action.result.body.progress.loaded / action.result.body.progress.total * 100
+        : undefined
     })
   } else {
     setState({
@@ -198,7 +200,7 @@ function render(state) {
     <footer>
     <ui-statusbar>
       <ui-text size="s">Status: ${statusText}</ui-text>
-      ${ready ? '' : `<ui-progressbar value="${progress}" title="${progress}%"/>`}
+      ${ready || typeof progress !== "number" ? '' : `<ui-progressbar value="${progress}" title="${progress}%"/>`}
     </ui-statusbar>
     </footer>
   `;

@@ -120,7 +120,7 @@ class plan extends HTMLElement {
 
       .vw-plan__list {
           margin: var(--plan-spacing) 0;
-          padding: 1rem;
+          padding: 1.5rem;
       }
 
       .vw-plan__list-item {

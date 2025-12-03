@@ -39,20 +39,29 @@ async function handleFetch(action) {
     return;
   }
 
+  // Throttle ref.
+  let progress = 0;
+
   /**
-   * @param progressEvent
+   * Dispatches throttled (see `progress`) `progressEvent` (10 steps).
+   * @todo: Make a more generic solution for this.
+   * @param {ProgressEvent} progressEvent
    */
   const handleProgress = (progressEvent) => {
-    dispatch(action, {
-      status: 102, statusText: "Downloading map",
-      body: {
-        progress: {
-          lengthComputable: progressEvent.lengthComputable,
-          loaded: progressEvent.loaded,
-          total: progressEvent.total,
+    const _progress = Math.round(progressEvent.loaded / progressEvent.total * 10);
+    if (_progress > progress) {
+      progress = _progress > 90 ? 0 : _progress; // More accurate when > 90%.
+      dispatch(action, {
+        status: 102, statusText: "Downloading map",
+        body: {
+          progress: {
+            lengthComputable: progressEvent.lengthComputable,
+            loaded: progressEvent.loaded,
+            total: progressEvent.total,
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   // From file.
@@ -63,6 +72,8 @@ async function handleFetch(action) {
 
   const graphStr = graph.graph;
   const graphNodes = graphStr.split("#")
+
+  dispatch(action, {status: 102, statusText: "Parsing map"})
 
   graph.graph = {}
   for (const dataStr of graphNodes) {
@@ -247,28 +258,6 @@ async function handleCalculateRoute(action) {
     return;
   }
 
-  let progress = 0;
-  /**
-   * @param progressEvent
-   * FIXME: Remove as more expensive than actual route calculation?
-   */
-  const handleProgress = (progressEvent) => {
-    const _progress = Math.round(progressEvent.loaded / progressEvent.total * 10);
-    if (_progress > progress) {
-      progress = _progress;
-      dispatch(action, {
-        status: 102, statusText: "Calculating route",
-        body: {
-          progress: {
-            lengthComputable: progressEvent.lengthComputable,
-            loaded: progressEvent.loaded,
-            total: progressEvent.total,
-          }
-        }
-      });
-    }
-  }
-  // const path = findPath(start, end, computeKey, getDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph), handleProgress);
   const path = findPath(start, end, computeKey, (n1, n2) => getDistance(n1.position, n2.position, "lonlat"), findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph))
     .map(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse().map(parseFloat)}})); // lonLat to latLon.
 
