@@ -120,7 +120,7 @@ class plan extends HTMLElement {
 
       .vw-plan__list {
           margin: var(--plan-spacing) 0;
-          padding: 1.5rem;
+          padding-inline: 1.5rem 0;
       }
 
       .vw-plan__list-item {
@@ -132,21 +132,21 @@ class plan extends HTMLElement {
         &::marker {
           color: var(--plan-color-bullet);
         }
-
-        &:focus-within ui-button,
-        &:hover ui-button {
-          position: absolute;
-          z-index: 10;
-        }
       }
 
       .vw-plan__list-item .button {
           color: inherit;
       }
+
+      .vw-plan__footer {
+        padding-inline: 1.5rem 0;
+        padding-block: var(--plan-spacing);
+      }
     `;
 
     this.node.innerHTML = `
       <style>${css}</style>
+
       <div class="vw-plan">
         <ol class="vw-plan__list">
           ${this.plan.map(({relativeDirection, distance, graphNodeIndex, linkName}, i) => {
@@ -160,6 +160,10 @@ class plan extends HTMLElement {
             </li>`;
           }).join("")}
         </ol>
+
+        <footer class="vw-plan__footer">
+          <ui-text>🧭 Totaal: ${formatDistance(this.plan.reduce((acc, val) => acc + val.distance, 0))}</ui-text>
+        </footer>
       </div>
     `;
   }
