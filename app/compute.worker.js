@@ -1,13 +1,13 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js";
-import {findPath} from "./lib/findpath.module.js";
+import {findPath} from "./lib/path.module.js";
+import {getDirection, getDistance, getRelativeDirection} from "./lib/geo.module.js";
 
-const {setState, dispatch} = createReactiveApp("findpath.worker");
+const {setState, dispatch} = createReactiveApp("compute.worker");
 
 /**
  * Worker message handler.
  */
 onmessage = async ({data}) => {
-  setState({action: data});
   const action = data;
 
   try {
@@ -39,7 +39,7 @@ async function handleFetch(action) {
     return;
   }
 
-    /**
+  /**
    * @param progressEvent
    */
   const handleProgress = (progressEvent) => {
@@ -101,7 +101,6 @@ async function handleFetch(action) {
  * @returns {Promise<string>} - A promise that resolves to the file content as text.
  */
 async function fetchFile(path, onProgress = () => null) {
-  // FIXME FIXME FIXME: after 71af1fc2bb5ffd33a285185b9d95ccdb78d04bad progress is broken.
   const response = await fetch(path);
   const contentLength = response.headers.get("Content-Length");
   const contentType = response.headers.get("Content-Type");
@@ -113,7 +112,6 @@ async function fetchFile(path, onProgress = () => null) {
     const ds = new DecompressionStream("gzip");
     stream = stream.pipeThrough(ds);
   }
-
 
   const total = contentLength ? parseInt(contentLength) : null;
   let loaded = 0;
@@ -179,60 +177,58 @@ function findGraphNode(graph, partialName) {
 }
 
 /**
- * Compute distance between nodes (Haversine)
- */
-function computeDistance(node1, node2, order = "lonlat") {
-  const [a0, a1] = node1.position.map(Number);
-  const [b0, b1] = node2.position.map(Number);
-
-  let lat1, lon1, lat2, lon2;
-  if (order === "lonlat") {
-    lon1 = a0;
-    lat1 = a1;
-    lon2 = b0;
-    lat2 = b1;
-  } else {
-    lat1 = a0;
-    lon1 = a1;
-    lat2 = b0;
-    lon2 = b1;
-  }
-
-  const R = 6371; // km
-  const toRad = d => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/**
  * Return neighbors of a node.
  */
 function findNeighbours(graph, node) {
-  const result = node.neighbors.map(id => graph.graph[id]).filter(Boolean);
-  return result
+  return node.neighbors.map(id => graph.graph[id]).filter(Boolean)
 }
 
 /**
- * Reconstruct renderable path.
+ * Reconstructs a path from the `cameFromMap` for rendering.
+ *
+ * Walks backward from the `end` node to the start using `cameFromMap`,
+ * building an array of path segments. Each segment contains:
+ *   - `graphNode`: the current node in the path
+ *   - `link`: any link information associated with the node
+ *
+ * The positions of nodes are reversed from [lon, lat] to [lat, lon] to
+ * be compatible with Leaflet mapping.
+ *
+ * @param {Object} graph - The graph containing nodes and links.
+ * @param {Object} cameFromMap - Map of node IDs to their predecessor nodes.
+ * @param {Object} end - The end node of the path.
+ * @returns {Array} Array of path segments with `graphNode`, `distance`, and `link`.
  */
-function reconstructRenderablePath(graph, cameFrom, current) {
+function reconstructRenderablePath(graph, cameFromMap, end) {
   const path = [];
-  let graphNode = current;
-  let link = null;
+  let graphNode = end;
+  let direction = 360;
+  let distance = 0;
+  let link = graphNode.link;
+
 
   while (graphNode) {
-    path.unshift({graphNode, link});
-    const prevNode = graphNode;
-    graphNode = cameFrom[computeKey(graphNode)];
-    if (graphNode) {
-      link = prevNode.neighbors.find(neighborId => computeKey(graph.graph[neighborId]) === computeKey(graphNode));
-    }
+    // Insert current `graphNode` and it's connecting to `link` to path.
+    path.unshift({direction, distance, graphNode, link});
+
+    // Get the id of the current `graphNode`.
+    const currentId = computeKey(graphNode);
+
+    // Assign the node connecting to the current `graphNode` to `graphNode`.
+    const previousGraphNode = graphNode;
+    graphNode = cameFromMap[currentId];
+
+    // Compute the direction between the two points (reverse order as we're computing from end to start).
+    direction = graphNode ? getDirection(graphNode.position, previousGraphNode.position) || direction : direction
+
+    // Compute the distance between the two points.
+    distance = graphNode ? getDistance(previousGraphNode.position, graphNode.position) : 0
+
+    // Get the name of the link connecting to the previous `graphNode` value.
+    link = graphNode?.link || null
   }
 
-  return path.map(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse()}}));
+  return path
 }
 
 /**
@@ -254,6 +250,7 @@ async function handleCalculateRoute(action) {
   let progress = 0;
   /**
    * @param progressEvent
+   * FIXME: Remove as more expensive than actual route calculation?
    */
   const handleProgress = (progressEvent) => {
     const _progress = Math.round(progressEvent.loaded / progressEvent.total * 10);
@@ -271,19 +268,41 @@ async function handleCalculateRoute(action) {
       });
     }
   }
-  const path = findPath(start, end, computeKey, computeDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph), handleProgress);
+  // const path = findPath(start, end, computeKey, getDistance, findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph), handleProgress);
+  const path = findPath(start, end, computeKey, (n1, n2) => getDistance(n1.position, n2.position, "lonlat"), findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph))
+    .map(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse().map(parseFloat)}})); // lonLat to latLon.
 
-  const plan = path ? path.reduce((acc, {graphNode, link}, i) => {
-    if (!link) return acc;
+  // TODO: Add turn info.
+  const plan = path
+    ? path.reduce((acc, {direction, distance, graphNode, link}, i) => {
+      const previousGraphNode = path[i - 1];
+      const previousLink = previousGraphNode?.link
+      const isSameLink = link === previousLink;
 
-    const lastLinkName = acc.slice(-1)[0]?.linkName;
-    const linkName = graphNode.link
+      // Update the previous node and extend the distance calculation with the new link segment.
+      if (isSameLink) {
+        const linkDistance = acc[acc.length - 1].distance + distance;  // Build total distance of all segments of this link.
+        acc[acc.length - 1] = {
+          ...acc[acc.length - 1],
+          distance: linkDistance,
+        };
+        return acc;
+      }
 
-    if (lastLinkName === linkName) {
-      return acc;
-    }
-    return [...acc, {linkName, graphNodeIndex: i}]
-  }, []) : []
+      // Add a new link.
+      const previousNode = acc[acc.length - 1];
+      const previousDirection = previousNode ? previousNode.direction : 360;
+      const relativeDirection = getRelativeDirection(previousDirection, direction)
+
+      return [...acc, {
+        direction,
+        relativeDirection,
+        distance,
+        linkName: link,
+        graphNodeIndex: i
+      }]
+    }, [])
+    : []
 
   dispatch(action, path
     ? {body: {path, plan}}

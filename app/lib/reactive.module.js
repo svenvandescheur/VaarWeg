@@ -14,7 +14,7 @@
  * @property {string} [body] - Resulting payload.
  */
 
-
+// Can be imported for raw access to the state.
 export let STATE = Object.freeze({});
 
 /**
@@ -39,7 +39,7 @@ export function createReactiveApp(name, render, initialState = {}, workerPath = 
 
   if (worker) worker.onmessage = onmessage;
   if (worker) worker.onerror = () => setState({status: 500, statusText: "Unknown error"});
-  return {setState, dispatch, worker};
+  return {dispatch, setState, STATE, worker};
 }
 
 /**

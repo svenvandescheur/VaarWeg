@@ -1,3 +1,5 @@
+import {formatDirectionAsEmoji, formatDirectionAsString, formatDistance} from "../../../lib/format.module.js";
+
 /**
  * Custom Web Component: <vw-plan>
  *
@@ -81,7 +83,7 @@ class plan extends HTMLElement {
     const value = this.getAttribute("plan");
     if (!value) return [];
     const json = decodeURIComponent(value);
-    return JSON.parse(json);
+    return JSON.parse(json)
   }
 
   /**
@@ -103,8 +105,9 @@ class plan extends HTMLElement {
     const css = `
       :host {
         display: contents;
+        --plan-color-bullet: var(--ui-color-muted-contrast);
         --plan-font-family: var(--ui-font-family-body, sans-serif);
-        --plan-font-size: var(--ui-font-size-body, 0.75rem);
+        --plan-font-size: var(--ui-font-size-body, 0.8rem);
         --plan-font-weight: var(--ui-font-weight-body, 100);
         --plan-spacing: var(--ui-spacing-m, 0.5rem);
       }
@@ -117,6 +120,7 @@ class plan extends HTMLElement {
 
       .vw-plan__list {
           margin: var(--plan-spacing) 0;
+          padding: 1rem;
       }
 
       .vw-plan__list-item {
@@ -124,6 +128,16 @@ class plan extends HTMLElement {
         font-size: var(--plan-font-size);
         font-weight: var(--plan-font-weight);
         line-height: 1.5;
+
+        &::marker {
+          color: var(--plan-color-bullet);
+        }
+
+        &:focus-within ui-button,
+        &:hover ui-button {
+          position: absolute;
+          z-index: 10;
+        }
       }
 
       .vw-plan__list-item .button {
@@ -135,10 +149,16 @@ class plan extends HTMLElement {
       <style>${css}</style>
       <div class="vw-plan">
         <ol class="vw-plan__list">
-          ${this.plan.map(({linkName, graphNodeIndex}) => `
-          <li class="vw-plan__list-item">
-            <ui-button variant="link" id="vw-plan-${graphNodeIndex}">${linkName}</ui-button>
-          </li>`).join("")}
+          ${this.plan.map(({relativeDirection, distance, graphNodeIndex, linkName}, i) => {
+            const isLast = i === this.plan.length - 1;
+            return `
+            <li class="vw-plan__list-item">
+              <ui-button variant="link" id="vw-plan-${graphNodeIndex}">
+                  <span title="${formatDirectionAsString(relativeDirection)}">${formatDirectionAsEmoji(relativeDirection)}</span>
+                  ${linkName} - ${isLast ? '🏁' : formatDistance(distance)}
+              </ui-button>
+            </li>`;
+          }).join("")}
         </ol>
       </div>
     `;

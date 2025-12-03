@@ -21,7 +21,7 @@
     --ui-font-family-heading: 'Brush Script MT', 'Comic Sans MS', cursive;
     --ui-font-weight-heading: 100;
     --ui-font-family-body: sans-serif;
-    --ui-font-size-body: 0.75rem;
+    --ui-font-size-body: 0.8rem;
     --ui-font-weight-body: 100;
     --ui-opacity-active: 1;
     --ui-opacity-active-background: .5;
@@ -32,8 +32,8 @@
 }
 
 #sidebar {
-    inset-block-start: var(--ui-spacing-m);
-    inset-inline-start: var(--ui-spacing-m);
+    inset-block-start: var(--ui-spacing-m, 0.5rem);
+    inset-inline-start: var(--ui-spacing-m, 0.5rem);
     position: absolute;
     max-width: 320px;
     width: 100%;

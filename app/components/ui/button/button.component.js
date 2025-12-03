@@ -137,6 +137,7 @@ class Button extends HTMLElement {
         transform: scale(var(--button-scale));
         transition: var(--button-transition);
         width: 100%;
+        white-space: nowrap;
 
         &:not(:disabled):focus,
         &:not(:disabled):hover {

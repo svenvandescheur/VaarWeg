@@ -72,7 +72,7 @@ class Input extends HTMLElement {
         --input-border-radius: var(--ui-border-radius-s, 0);
         --input-scale: var(--input-default-scale);
         --input-font-family: var(--ui-font-family-body, sans-serif);
-        --input-font-size: var(--ui-font-size-body, 0.75rem);
+        --input-font-size: var(--ui-font-size-body, 0.8rem);
         --input-font-weight: var(--ui-font-weight-body, 100);
         --input-spacing: var(--ui-spacing-m, 0.5rem);
         --input-transition: var(--ui-transition, none);

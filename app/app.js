@@ -13,7 +13,7 @@ const {setState, dispatch} = createReactiveApp("app", render, {
   plan: [],
   progress: 0,
   map: null,
-}, "./findpath.worker.js", onMessage)
+}, "./compute.worker.js", onMessage)
 
 /**
  * Worker message handler.

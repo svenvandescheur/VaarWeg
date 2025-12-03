@@ -63,7 +63,7 @@ class Text extends HTMLElement {
       :host {
         display: contents;
         --text-font-family: var(--ui-font-family-body, sans-serif);
-        --text-font-size: var(--ui-font-size-body, 0.75rem);
+        --text-font-size: var(--ui-font-size-body, 0.8rem);
         --text-font-weight: var(--ui-font-weight-body, 100);
       }
 
