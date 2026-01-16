@@ -86,7 +86,7 @@ class FormControlComponent extends HTMLElement {
       <style>${css}</style>
         <label class="ui-form-control">
         <ui-text>${this.label}:</ui-text>
-        <ui-input list="locators" name="${this.name}" value="${this.value}" ${this.attrs}/>
+        <ui-input name="${this.name}" value="${this.value}" ${this.attrs}/>
       </label>
     `;
   }

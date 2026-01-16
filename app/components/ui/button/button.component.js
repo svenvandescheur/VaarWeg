@@ -20,11 +20,13 @@ class Button extends HTMLElement {
     super();
 
     /** @private @type {ShadowRoot} Shadow root for encapsulated styles */
-    this.node = this.attachShadow({ mode: "open" });
+    this.node = this.attachShadow({mode: "open"});
 
     /** @private @type {HTMLButtonElement|null} Hidden native submit button for polyfill */
     this._hiddenSubmit = null;
 
+    this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handleSubmit = this.handleSubmit.bind(this);
     this.render();
   }
 
@@ -34,25 +36,26 @@ class Button extends HTMLElement {
    */
   connectedCallback() {
     const button = this.node.querySelector("button");
-    if (!button) return;
+    const form = this.closest("form");
 
     // Click triggers form submission
-    button.addEventListener("click", (e) => {
-      this.submitForm();
-    });
-
+    if (button) button.addEventListener("click", this.handleSubmit)
     // Polyfill Enter key on inputs inside the closest form
+    if (form) form.addEventListener("keydown", this.handleKeyDown);
+  }
+
+  /**
+   * Lifecycle callback invoked when the element is disconnected from the DOM.
+   * Removes previously attached event listeners to avoid memory leaks.
+   */
+  disconnectedCallback() {
+    const button = this.node.querySelector("button");
     const form = this.closest("form");
-    if (form) {
-      form.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          const target = e.target;
-          if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.attachInternals?.()?.form === form) {
-            this.submitForm();
-          }
-        }
-      });
-    }
+
+    // Click triggers form submission
+    if (button) button.removeEventListener("click", this.handleSubmit)
+    // Polyfill Enter key on inputs inside the closest form
+    if (form) form.removeEventListener("keydown", this.handleKeyDown);
   }
 
   /**
@@ -193,11 +196,30 @@ class Button extends HTMLElement {
   }
 
   /**
+   * Polyfills Enter key on inputs inside the closest form.
+   */
+  handleKeyDown(e) {
+    if (e.key === "Enter") {
+      const target = e.target;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA"
+      const isSameFormTarget = isInput || target.attachInternals?.()?.form === form;
+      const isDataListInput = target.list
+      const isDataListCompleted = isDataListInput && [...target.list.options].some(option => option.value === target.value)
+      // Fixes issues on Safari where pressing Enter while focussing datalist input submits form before selecting value.
+      if(isDataListInput && !isDataListCompleted) return;
+
+      if (isSameFormTarget) {
+        this.handleSubmit();
+      }
+    }
+  }
+
+  /**
    * Submits the closest form.
    * For type="submit", uses a hidden native button to trigger real submission.
    * For type="reset", calls form.reset().
    */
-  submitForm() {
+  handleSubmit() {
     const form = this.closest("form");
     if (!form) return;
 
