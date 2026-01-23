@@ -6,5 +6,6 @@ export * from './formcontrol/index.js';
 export * from './heading/index.js';
 export * from './input/index.js';
 export * from './progressbar/index.js';
+export * from './row/index.js';
 export * from './statusbar/index.js';
 export * from './text/index.js';

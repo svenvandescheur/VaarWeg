@@ -7,7 +7,7 @@
  */
 class Button extends HTMLElement {
   /** Attributes to observe for re-rendering */
-  static observedAttributes = ["variant", "type"];
+  static observedAttributes = ["variant", "square", "type"];
 
   /** Enables form association for custom elements */
   static formAssociated = true;
@@ -95,6 +95,15 @@ class Button extends HTMLElement {
    * Defaults to "submit" if not set.
    * @returns {string} Button type: submit, reset, or button
    */
+  get square() {
+    return this.hasAttribute("square")
+  }
+
+  /**
+   * Returns the button type attribute.
+   * Defaults to "submit" if not set.
+   * @returns {string} Button type: submit, reset, or button
+   */
   get type() {
     return (this.getAttribute("type") || "submit").toLowerCase();
   }
@@ -107,6 +116,7 @@ class Button extends HTMLElement {
     /** Inline CSS for the button component */
     const css = `
       :host {
+        --button-size: 2rem;
         --button-default-scale: 1;
         --button-focussed-scale: var(--ui-scale-factor, 1);
         --button-focussed-link-scale: 1;
@@ -114,7 +124,7 @@ class Button extends HTMLElement {
         --button-pressed-link-scale: 1;
         --button-scale: var(--button-default-scale);
         --button-border-radius: var(--ui-border-radius-s, 0);
-        --button-color-background: var(--ui-color-secondary, gray);
+        --button-color-background: var(--ui-color-secondary, lightgray);
         --button-color-text: var(--ui-color-secondary-contrast, white);
         --button-primary-color-background: var(--ui-color-primary, cornflowerblue);
         --button-primary-color-text: var(--ui-color-primary-contrast, white);
@@ -133,9 +143,8 @@ class Button extends HTMLElement {
         border-radius: var(--button-border-radius);
         color: var(--button-color-text);
         cursor: pointer;
-        height: 2rem;
+        height: var(--button-size);
         margin: 0;
-        min-width: 12rem;
         padding: 0 var(--button-spacing);
         transform: scale(var(--button-scale));
         transition: var(--button-transition);
@@ -155,6 +164,13 @@ class Button extends HTMLElement {
       .ui-button--variant-primary {
         --button-color-background: var(--button-primary-color-background);
         --button-color-text: var(--button-primary-color-text);
+        min-width: 12rem;
+
+      }
+
+      .ui-button--square {
+        min-width: unset;
+        width: var(--button-size);
       }
 
       .ui-button--variant-link {
@@ -189,7 +205,7 @@ class Button extends HTMLElement {
 
     this.node.innerHTML = `
       <style>${css}</style>
-      <button class="ui-button ui-button--variant-${this.variant}" type="${this.type}" ${this.attrs}>
+      <button class="ui-button ${this.square ? 'ui-button--square ' : ''}ui-button--variant-${this.variant}" type="${this.type}" ${this.attrs}>
         <ui-text><slot></slot></ui-text>
       </button>
     `;

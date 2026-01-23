@@ -15,11 +15,14 @@ onmessage = async ({data}) => {
       case "FETCH":
         await handleFetch(action);
         break;
+      case "FIND_NEARBY_NODES":
+        await handleFindNearbyNodes(action);
+        break;
       case "CALCULATE_ROUTE":
         await handleCalculateRoute(action);
         break;
       default:
-        dispatch(action, {status: 500, statusText: "Unknown error"});
+        dispatch(action, {status: 500, statusText: "Unknown action"});
         break;
     }
   } catch (e) {
@@ -168,6 +171,19 @@ function computeKey(node) {
  * @returns {GraphNode|undefined} The matching node object, or undefined if not found.
  */
 function findGraphNode(graph, partialName) {
+  // This is an exact node.
+  if (partialName.includes("@")) {
+    const [locator, strCoords] = partialName.split("@");
+
+    for (const node of Object.values(graph.graph)) {
+      if (node.link === locator) {
+        const strPosition = node.position.toReversed().join();
+        if (strPosition === strCoords) return node
+      }
+    }
+    return
+  }
+
   const q = partialName.toLowerCase()
   const candidates = []
 
@@ -243,9 +259,28 @@ function reconstructRenderablePath(graph, cameFromMap, end) {
 }
 
 /**
+ * Finds nodes close to `center`
+ */
+function handleFindNearbyNodes(action) {
+  const {center, edge} = action.payload;
+  const distance = getDistance(center, edge);
+  const graph = STATE.graph.graph;
+  const selectableNodes = []
+
+  for (const node of Object.values(graph)) {
+    const position = node.position;
+
+    if (getDistance(position, center) < distance) {
+      selectableNodes.push(node);
+    }
+  }
+  dispatch(action, {body: {selectableNodes}});
+}
+
+/**
  * Handle CALCULATE_ROUTE action.
  */
-async function handleCalculateRoute(action) {
+function handleCalculateRoute(action) {
   const {from, to} = action.payload;
   const graph = STATE.graph;
 

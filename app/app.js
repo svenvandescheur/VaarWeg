@@ -2,18 +2,31 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 import "./components/index.js"
 
-const {setState, dispatch} = createReactiveApp("app", render, {
+const SELECT_MAP_MIN_ZOOM = 15;
+const SELECT_MAP_MIN_ZOOM_TOLERANCE = 3;
+
+const BASE_STATE = Object.freeze({
+  activePathIndex: null,
+  locators: null,
+  path: [],
+  plan: [],
+  selectableFor: null,
+  selectableNodes: [],
   title: "VaarWeg",
+})
+
+const INITIAL_STATE = Object.freeze({
+  ...BASE_STATE,
   status: 102,
   statusText: "Loading",
   action: null,
-  ready: false,
-  path: [],
-  activePathIndex: null,
-  plan: [],
-  progress: 0,
   map: null,
-}, "./compute.worker.js", onMessage)
+  progress: 0,
+  ready: false,
+});
+
+
+const {setState, dispatch} = createReactiveApp("app", render, INITIAL_STATE, "./compute.worker.js", onMessage)
 
 /**
  * Worker message handler.
@@ -26,16 +39,18 @@ async function onMessage({data}) {
   const action = data
 
   try {
-
     switch (action.name) {
       case "FETCH":
         handleFetchResponse(action)
+        break;
+      case "FIND_NEARBY_NODES":
+        handleFindNearbyNodesResponse(action)
         break;
       case "CALCULATE_ROUTE":
         handleCalculateRouteResponse(action)
         break;
       default:
-        setState({status: 500, statusText: "Unknown error"});
+        setState({status: 500, statusText: "Unknown action"});
         break;
     }
   } catch (e) {
@@ -88,6 +103,32 @@ function handleFetchResponse(action) {
 
 /**
  * Dispatches call to worker.
+ * @param {string} id
+ * @returns {Promise<void>}
+ */
+async function dispatchFindNearbyNodes(id) {
+  setState({status: 102, statusText: "Loading"})
+  const center = Object.values(STATE.map.getCenter())
+  const edge = Object.values(STATE.map.getBounds()._southWest)
+  /** @type {Action} */
+  const action = {name: "FIND_NEARBY_NODES", payload: {id, center: center.reverse(), edge: edge.reverse()}}
+  dispatch(action)
+}
+
+/**
+ * Process Worker response.
+ * @param {Action} action
+ */
+function handleFindNearbyNodesResponse(action) {
+  setState({
+    status: action.result.status,
+    statusText: action.result.statusText,
+    selectableNodes: action.result.body.selectableNodes,
+  });
+}
+
+/**
+ * Dispatches call to worker.
  * @param {string} from
  * @param {string} to
  * @returns {Promise<void>}
@@ -123,6 +164,18 @@ function handleCalculateRouteResponse(action) {
   }
 }
 
+function handleSelectNode(state, node) {
+  const link = node.link;
+  const coords = node.position.join(",")
+  const value = `${link}@${coords}`
+
+  var searchParams = new URLSearchParams(window.location.search);
+  searchParams.set(state.selectableFor, value);
+  const sanitizedState = Object.fromEntries(Object.entries(STATE).filter(([k, v]) => k !== "map"))
+  history.pushState(sanitizedState, undefined, `?${searchParams.toString()}`)
+  render(state)
+}
+
 /**
  * Renders state into a string.
  * @param state
@@ -132,28 +185,42 @@ function render(state) {
   const sidebarWidth = sidebar.clientWidth;
 
   const {
+    status,
+    statusText,
+    activePathIndex,
     locators,
     map,
     path,
     plan,
     progress,
     ready,
-    activePathIndex,
-    status,
-    statusText,
-    title
+    selectableFor,
+    selectableNodes,
+    title,
   } = state;
+
   const searchParams = new URL(window.location).searchParams;
   const from = searchParams.get("from") || ""
-  const to = searchParams.get("to") || "";
+  const to = searchParams.get("to") || ""
 
-  // Leaflet
+  // Clear existing layers.s
   map?.eachLayer(layer => {
     if (!(layer instanceof L.TileLayer)) {
       map.removeLayer(layer);
     }
   });
 
+  // Draw selectable nodes.
+  if (map?.getZoom() >= SELECT_MAP_MIN_ZOOM) {
+    for (let node of selectableNodes) {
+      const link = node.link;
+      const coords = node.position.join(",")
+      const title = `${link}@${coords}`
+      L.marker(node.position.reverse(), {title}).addTo(map).on("click", () => handleSelectNode(state, node))
+    }
+  }
+
+  // Draw path.
   if (map && path?.length) {
     const polylines = [];
 
@@ -173,26 +240,43 @@ function render(state) {
         polyline.bindPopup(node.graphNode.link)
         polylines.push(polyline);
 
-        if (i === activePathIndex) {
-          map.fitBounds(polyline.getBounds(), {padding: [0,0,0, sidebarWidth]})
+        // When node selection is enabled, do not call fitBounds as it may interfere and cause a loop.
+        if (selectableFor === null && i === activePathIndex) {
+          map.fitBounds(polyline.getBounds(), {padding: [0, 0, 0, sidebarWidth]})
         }
       }
     }
 
     const featureGroup = L.featureGroup(polylines);
-    if (activePathIndex === null) map.fitBounds(featureGroup.getBounds(), {padding: [0,0,0, sidebarWidth]})
+    // When node selection is enabled, do not call fitBounds as it may interfere and cause a loop.
+    if (selectableFor === null && activePathIndex === null) {
+      map.fitBounds(featureGroup.getBounds(), {padding: [0, 0, 0, sidebarWidth]})
+    }
   }
 
+  // Draw ui.
   sidebar.innerHTML = `
 <!--    <header>-->
 <!--      <ui-heading>${title}</ui-heading>-->
 <!--    </header>-->
 
     <ui-form method="get" action="./">
-      <ui-form-control label="Van" name="from" value="${from}" list="locators" placeholder="🏠" required></ui-form-control>
-      <ui-form-control label="Naar" name="to" value="${to}" list="locators" placeholder="🏁" required></ui-form-control>
+        <ui-row>
+            <ui-form-control id="from" label="Van" name="from" value="${from}" list="locators" placeholder="🏠" required></ui-form-control>
+            <ui-button aria-controls="from"${status < 200 ? " disabled" : ""} name="select-on-map" square type="button" variant="secondary" title="Kies op kaart">📍</ui-button>
+        </ui-row>
+
+        <ui-row>
+            <ui-form-control id="to" label="Naar" name="to" value="${to}" list="locators" placeholder="🏁" required></ui-form-control>
+            <ui-button aria-controls="to"${status < 200 ? " disabled" : ""} name="select-on-map" square type="button" variant="secondary" title="Kies op kaart">📍</ui-button>
+        </ui-row>
+
       <datalist id="locators">${locators?.locators.map(l => `<option>${l}</option>`).join("")}</datalist>
-      <ui-button variant="primary" type="submit"${status < 200 ? " disabled" : ""}>${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🛳️️"}</ui-button>
+
+      <ui-row justify-content="space-between">
+          <ui-button name="clear" type="reset"${status < 200 ? " disabled" : ""} variant="secondary">Wissen</ui-button>
+          <ui-button type="submit"${status < 200 ? " disabled" : ""} variant="primary">${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🧭"}</ui-button>
+      </ui-row>
     </ui-form>
 
     ${plan?.length ? `<vw-plan plan="${encodeURIComponent(JSON.stringify(plan, undefined, false))}"></vw-plan>` : ''}
@@ -211,20 +295,69 @@ function render(state) {
  */
 function initMap() {
   const map = L.map('map', {zoomControl: false}).setView([52.3676, 4.9041], 13);
+  map.addEventListener("moveend", (e) => handleMapInput(e, map))
+  map.addEventListener("resize", (e) => handleMapInput(e, map))
+  map.addEventListener("zoomend", (e) => handleMapInput(e, map))
   L.control.zoom({
     position: 'bottomright'
-}).addTo(map);
+  }).addTo(map);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-}).addTo(map);
+  }).addTo(map);
   setState({map: map})
+}
+
+/**
+ * Updates the state based on Leaflet's side effects.
+ * @param map
+ */
+function handleMapInput(e, map) {
+  if (STATE.selectableFor && map.getZoom() < SELECT_MAP_MIN_ZOOM) {
+    setState({selectableFor: null, selectableNodes: []})
+  }
+
+  if (STATE.selectableFor !== null) {
+    dispatchFindNearbyNodes(STATE.selectableFor)
+  }
 }
 
 /**
  * Sets up events for the toolbar, input values are synced to state.
  */
 function initEvents() {
+  const handleClick = (e) => {
+    const target = e.target;
+    const name = target.getAttribute("name");
+
+    switch (name) {
+      case "clear":
+        const  url = new URL(window.location);
+        url.search = '';
+
+        history.pushState(INITIAL_STATE, '', url)
+        setState(BASE_STATE)
+        break
+      case "select-on-map":
+        const controls = target.ariaControlsElements;
+        console.assert(controls.length === 1, `aria-controls should reference exactly one element (found ${controls.length})!`);
+
+        const uiInput = target.ariaControlsElements[0];
+        const id = uiInput.name;
+
+        // Cancel selection.
+        if (STATE.selectableFor === id) {
+          setState({selectableFor: null, selectableNodes: []});
+          return;
+        }
+
+        // Show selection.
+        STATE.map.setZoom(SELECT_MAP_MIN_ZOOM + SELECT_MAP_MIN_ZOOM_TOLERANCE)
+        setState({selectableFor: id})
+        dispatchFindNearbyNodes(id)
+    }
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
 
@@ -235,6 +368,9 @@ function initEvents() {
     const state = Object.fromEntries(Object.entries(STATE).filter(([k, v]) => k !== "map"))
     history.pushState(state, '', `?${params}`)
 
+    // Avoid conflicts with node selection.
+    setState({selectableFor: null, selectableNodes: []});
+
     dispatchCalculateRoute(from, to);
   }
 
@@ -244,6 +380,7 @@ function initEvents() {
     setState({activePathIndex: graphNodeId})
   }
 
+  document.addEventListener("click", handleClick);
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("graphNodeSelect", handleGraphNodeSelect);
 }
