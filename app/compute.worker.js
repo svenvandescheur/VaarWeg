@@ -293,8 +293,9 @@ function handleCalculateRoute(action) {
     return;
   }
 
-  const path = findPath(start, end, computeKey, (n1, n2) => getDistance(n1.position, n2.position, "lonlat"), findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph))
-    .map(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse().map(parseFloat)}})); // lonLat to latLon.
+  const _path = findPath(start, end, computeKey, (n1, n2) => getDistance(n1.position, n2.position, "lonlat"), findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph))
+  // lonLat to latLon.
+  const path = _path?.map?.(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse().map(parseFloat)}}));
 
   // TODO: Add turn info.
   const plan = path
