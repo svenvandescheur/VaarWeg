@@ -42,34 +42,9 @@ async function handleFetch(action) {
     return;
   }
 
-  // Throttle ref.
-  let progress = 0;
-
-  /**
-   * Dispatches throttled (see `progress`) `progressEvent` (10 steps).
-   * @todo: Make a more generic solution for this.
-   * @param {ProgressEvent} progressEvent
-   */
-  const handleProgress = (progressEvent) => {
-    const _progress = Math.round(progressEvent.loaded / progressEvent.total * 10);
-    if (_progress > progress) {
-      progress = _progress > 90 ? 0 : _progress; // More accurate when > 90%.
-      dispatch(action, {
-        status: 102, statusText: "Kaart downloaden",
-        body: {
-          progress: {
-            lengthComputable: progressEvent.lengthComputable,
-            loaded: progressEvent.loaded,
-            total: progressEvent.total,
-          }
-        }
-      });
-    }
-  }
-
   // From file.
   const {graphSrc} = action.payload;
-  const graph = await fetchFile(graphSrc, handleProgress)
+  const graph = await fetchFile(graphSrc, (e => handleProgress(e, action, "Kaart downloaden")))
   const links = graph.links
   setState({graph, locators: links})
 
@@ -151,6 +126,27 @@ async function fetchFile(path, onProgress = () => null) {
 
   const blob = new Blob(chunks);
   return JSON.parse(await blob.text())
+}
+
+
+/**
+ * Dispatches throttled (see `progress`) `progressEvent` (10 steps).
+ * @param {ProgressEvent} progressEvent
+ * @param {Action} action
+ * @param {string} statusText
+ */
+function handleProgress(progressEvent, action, statusText) {
+  // console.log(progressEvent.loaded)
+  dispatch(action, {
+    status: 102, statusText,
+    body: {
+      progress: {
+        lengthComputable: progressEvent.lengthComputable,
+        loaded: progressEvent.loaded,
+        total: progressEvent.total,
+      }
+    }
+  });
 }
 
 /**
@@ -293,9 +289,12 @@ function handleCalculateRoute(action) {
     return;
   }
 
-  const _path = findPath(start, end, computeKey, (n1, n2) => getDistance(n1.position, n2.position, "lonlat"), findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph))
+  const _path = findPath(start, end, computeKey, (n1, n2) => getDistance(n1.position, n2.position, "lonlat"), findNeighbours.bind(null, graph), reconstructRenderablePath.bind(null, graph), (e) => handleProgress(e, action, "Route berekenen"))
   // lonLat to latLon.
-  const path = _path?.map?.(n => ({...n, graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse().map(parseFloat)}}));
+  const path = _path?.map?.(n => ({
+    ...n,
+    graphNode: {...n.graphNode, position: n.graphNode.position.slice().reverse().map(parseFloat)}
+  }));
 
   // TODO: Add turn info.
   const plan = path
@@ -306,7 +305,7 @@ function handleCalculateRoute(action) {
 
       // Update the previous node and extend the distance calculation with the new link segment.
       if (isSameLink) {
-        const linkDistance = acc[acc.length - 1].distance + distance;  // Build total distance of all segments of this link.
+        const linkDistance = acc[acc.length - 1].distance + distance;  // Build the total distance of all segments of this link.
         acc[acc.length - 1] = {
           ...acc[acc.length - 1],
           distance: linkDistance,

@@ -2,8 +2,8 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 import "./components/index.js"
 
-const SELECT_MAP_MIN_ZOOM = 15;
-const SELECT_MAP_MIN_ZOOM_TOLERANCE = 3;
+const SELECT_MAP_MIN_ZOOM = 14;
+const SELECT_MAP_MIN_ZOOM_TOLERANCE = 4;
 
 const BASE_STATE = Object.freeze({
   activePathIndex: null,
@@ -275,7 +275,7 @@ function render(state) {
 
       <ui-row justify-content="space-between">
           <ui-button name="clear" type="reset"${status < 200 ? " disabled" : ""} variant="secondary">Wissen</ui-button>
-          <ui-button type="submit"${status < 200 ? " disabled" : ""} variant="primary">${status === 102 ? "Nog even wachten… 🍕" : "Bereken route 🧭"}</ui-button>
+          <ui-button type="submit"${!ready ? " disabled" : ""} variant="primary">${!ready ? "Nog even wachten… 🍕" : "Bereken route 🧭"}</ui-button>
       </ui-row>
     </ui-form>
 
@@ -314,7 +314,7 @@ function initMap() {
  */
 function handleMapInput(e, map) {
   if (STATE.selectableFor && map.getZoom() < SELECT_MAP_MIN_ZOOM) {
-    setState({selectableFor: null, selectableNodes: []})
+    // setState({selectableFor: null, selectableNodes: []})
   }
 
   if (STATE.selectableFor !== null) {
@@ -377,7 +377,7 @@ function initEvents() {
 
   const handleGraphNodeSelect = (e) => {
     const graphNodeId = e.detail.graphNodeId
-    setState({activePathIndex: graphNodeId})
+    setState({activePathIndex: graphNodeId, selectableFor: null, selectableNodes: []})
   }
 
   document.addEventListener("click", handleClick);

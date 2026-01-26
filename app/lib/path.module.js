@@ -21,6 +21,8 @@ export function findPath(start, goal, computeKeyFn, computeDistanceFn, findNeigh
   const gScore = {[startKey]: 0}
   const fScore = {[startKey]: computeDistanceFn(start, goal)}
 
+  let maxLoaded = 0;
+
   while (openSet.length) {
     const current = openSet.shift()
     const currentKey = computeKeyFn(current);
@@ -42,11 +44,17 @@ export function findPath(start, goal, computeKeyFn, computeDistanceFn, findNeigh
         fScore[neighborKey] = tentativeGScore + neighborDistanceToGoal;
         cameFrom[neighborKey] = current;
 
-        onProgress(new ProgressEvent("progress", {
-          lengthComputable: typeof graphSize !== "undefined",
-          loaded: gScore[neighborKey] / fScore[neighborKey] * 100,
-          total: 100
-        }))
+        const loaded = (gScore[neighborKey] * 10) / (fScore[neighborKey] + 1) | 0;
+
+        if (loaded > maxLoaded) {
+          maxLoaded = loaded;
+
+          onProgress(new ProgressEvent("progress", {
+            lengthComputable: typeof graphSize !== "undefined",
+            loaded: loaded * 10,
+            total: 100
+          }))
+        }
 
         openSet.push(neighbor)
         openSet.sort((a, b) => {

@@ -17,6 +17,9 @@
 // Can be imported for raw access to the state.
 export let STATE = Object.freeze({});
 
+// Flag to determine whether a render is scheduled.
+let RENDER_SCHEDULED = false;
+
 /**
  * Creates a reactive application instance with optional Web Worker integration.
  *
@@ -50,7 +53,16 @@ export function createReactiveApp(name, render, initialState = {}, workerPath = 
  */
 function _setState(changes, render) {
   STATE = Object.freeze({...STATE, ...changes})
-  render?.(STATE);
+
+  // Check for a scheduled render, skip frames if already rendering.
+  if(!RENDER_SCHEDULED) {
+    RENDER_SCHEDULED = true;
+
+    requestAnimationFrame(() => {
+      render?.(STATE);  // Always the latest state.
+      RENDER_SCHEDULED = false;
+    })
+  }
 }
 
 /**
