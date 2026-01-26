@@ -22,7 +22,7 @@ onmessage = async ({data}) => {
         await handleCalculateRoute(action);
         break;
       default:
-        dispatch(action, {status: 500, statusText: "Unknown action"});
+        dispatch(action, {status: 500, statusText: "Onbekende actie"});
         break;
     }
   } catch (e) {
@@ -38,7 +38,7 @@ onmessage = async ({data}) => {
 async function handleFetch(action) {
   // From state (memoize).
   if (STATE.graph) {
-    dispatch(action, {status: 208, statusText: "From cache", body: STATE.graph})
+    dispatch(action, {status: 208, statusText: "Opgehaald uit cache", body: STATE.graph})
     return;
   }
 
@@ -55,7 +55,7 @@ async function handleFetch(action) {
     if (_progress > progress) {
       progress = _progress > 90 ? 0 : _progress; // More accurate when > 90%.
       dispatch(action, {
-        status: 102, statusText: "Downloading map",
+        status: 102, statusText: "Kaart downloaden",
         body: {
           progress: {
             lengthComputable: progressEvent.lengthComputable,
@@ -76,7 +76,7 @@ async function handleFetch(action) {
   const graphStr = graph.graph;
   const graphNodes = graphStr.split("#")
 
-  dispatch(action, {status: 102, statusText: "Parsing map"})
+  dispatch(action, {status: 102, statusText: "Kaart verwerken"})
 
   graph.graph = {}
   for (const dataStr of graphNodes) {
@@ -284,12 +284,12 @@ function handleCalculateRoute(action) {
   const {from, to} = action.payload;
   const graph = STATE.graph;
 
-  dispatch(action, {status: 102, statusText: `Resolving nodes`});
+  dispatch(action, {status: 102, statusText: `Knooppunten bepalen`});
   const start = findGraphNode(graph, from);
   const end = findGraphNode(graph, to);
 
   if (!start || !end) {
-    dispatch(action, {status: 400, statusText: `"From" or "To" not found`});
+    dispatch(action, {status: 400, statusText: `Begin- of eindpunt niet gevonden`});
     return;
   }
 
@@ -331,5 +331,5 @@ function handleCalculateRoute(action) {
 
   dispatch(action, path
     ? {body: {path, plan}}
-    : {status: 404, statusText: "No path found"});
+    : {status: 404, statusText: "Geen route gevonden"});
 }

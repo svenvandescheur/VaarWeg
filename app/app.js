@@ -18,7 +18,7 @@ const BASE_STATE = Object.freeze({
 const INITIAL_STATE = Object.freeze({
   ...BASE_STATE,
   status: 102,
-  statusText: "Loading",
+  statusText: "Bezig met laden",
   action: null,
   map: null,
   progress: 0,
@@ -50,7 +50,7 @@ async function onMessage({data}) {
         handleCalculateRouteResponse(action)
         break;
       default:
-        setState({status: 500, statusText: "Unknown action"});
+        setState({status: 500, statusText: "Onbekende actie"});
         break;
     }
   } catch (e) {
@@ -65,7 +65,7 @@ async function onMessage({data}) {
  * @returns {Promise<void>}
  */
 async function dispatchFetch(graphSrc) {
-  setState({status: 102, statusText: "Loading"})
+  setState({status: 102, statusText: "Bezig met laden"})
 
   /** @type {Action} */
   const action = {name: "FETCH", payload: {graphSrc}}
@@ -78,7 +78,7 @@ async function dispatchFetch(graphSrc) {
  */
 function handleFetchResponse(action) {
   if (!action.result?.body) {
-    setState({status: 500, statusText: "Unknown error"});
+    setState({status: 500, statusText: "Er is een onbekende fout opgetreden"});
     return;
   }
 
@@ -107,7 +107,7 @@ function handleFetchResponse(action) {
  * @returns {Promise<void>}
  */
 async function dispatchFindNearbyNodes(id) {
-  setState({status: 102, statusText: "Loading"})
+  setState({status: 102, statusText: "Bezig met laden"})
   const center = Object.values(STATE.map.getCenter())
   const edge = Object.values(STATE.map.getBounds()._southWest)
   /** @type {Action} */
@@ -134,7 +134,7 @@ function handleFindNearbyNodesResponse(action) {
  * @returns {Promise<void>}
  */
 async function dispatchCalculateRoute(from, to) {
-  setState({status: 102, statusText: "Loading"})
+  setState({status: 102, statusText: "Bezig met laden"})
 
   /** @type {Action} */
   const action = {name: "CALCULATE_ROUTE", payload: {from, to}}
