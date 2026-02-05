@@ -3,16 +3,17 @@ import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 import "./components/index.js"
 
 const SELECT_MAP_MIN_ZOOM = 14;
-const SELECT_MAP_MIN_ZOOM_TOLERANCE = 4;
 
 const BASE_STATE = Object.freeze({
   activePathIndex: null,
+  from: '',
   locators: null,
   path: [],
   plan: [],
   selectableFor: null,
   selectableNodes: [],
   title: "VaarWeg",
+  to: '',
 })
 
 const INITIAL_STATE = Object.freeze({
@@ -26,7 +27,20 @@ const INITIAL_STATE = Object.freeze({
 });
 
 
-const {setState, dispatch} = createReactiveApp("app", render, INITIAL_STATE, "./compute.worker.js", onMessage)
+const {
+  setState,
+  dispatch
+} = createReactiveApp(
+  "app",
+  render,
+  INITIAL_STATE,
+  "./compute.worker.js",
+  onMessage,
+  {
+    keysToQuery: ["from", "to"],
+    unClonableKeys: ["map"]
+  }
+)
 
 /**
  * Worker message handler.
@@ -164,16 +178,30 @@ function handleCalculateRouteResponse(action) {
   }
 }
 
-function handleSelectNode(state, node) {
+/**
+ * Gets called when a node marker is clicked.
+ * @param state
+ * @param node
+ */
+function handleNodeMarkerSelect(state, node) {
   const link = node.link;
   const coords = node.position.join(",")
   const value = `${link}@${coords}`
+  setState({[state.selectableFor]: value, selectableFor: null, selectableNodes: []})
 
-  var searchParams = new URLSearchParams(window.location.search);
-  searchParams.set(state.selectableFor, value);
-  const sanitizedState = Object.fromEntries(Object.entries(STATE).filter(([k, v]) => k !== "map"))
-  history.pushState(sanitizedState, undefined, `?${searchParams.toString()}`)
-  render(state)
+  // Update existing path.
+  if(state.from && state.to && state.path.length) {
+    switch (state.selectableFor) {
+      case "from":
+        dispatchCalculateRoute(value, state.to);
+        break;
+      case "to":
+        dispatchCalculateRoute(state.from, value);
+        break;
+      default:
+        throw new Error("Unknown selectableFor value!", state.selectableFor);
+    }
+  }
 }
 
 /**
@@ -188,6 +216,7 @@ function render(state) {
     status,
     statusText,
     activePathIndex,
+    from,
     locators,
     map,
     path,
@@ -197,11 +226,8 @@ function render(state) {
     selectableFor,
     selectableNodes,
     title,
+    to,
   } = state;
-
-  const searchParams = new URL(window.location).searchParams;
-  const from = searchParams.get("from") || ""
-  const to = searchParams.get("to") || ""
 
   // Clear existing layers.s
   map?.eachLayer(layer => {
@@ -216,7 +242,7 @@ function render(state) {
       const link = node.link;
       const coords = node.position.join(",")
       const title = `${link}@${coords}`
-      L.marker(node.position.reverse(), {title}).addTo(map).on("click", () => handleSelectNode(state, node))
+      L.marker(node.position.reverse(), {title}).addTo(map).on("click", () => handleNodeMarkerSelect(state, node))
     }
   }
 
@@ -242,7 +268,7 @@ function render(state) {
 
         // When node selection is enabled, do not call fitBounds as it may interfere and cause a loop.
         if (selectableFor === null && i === activePathIndex) {
-          map.fitBounds(polyline.getBounds(), {padding: [0, 0, 0, sidebarWidth]})
+          map.panTo(polyline.getCenter())
         }
       }
     }
@@ -332,10 +358,9 @@ function initEvents() {
 
     switch (name) {
       case "clear":
-        const  url = new URL(window.location);
+        const url = new URL(window.location);
         url.search = '';
 
-        history.pushState(INITIAL_STATE, '', url)
         setState(BASE_STATE)
         break
       case "select-on-map":
@@ -351,8 +376,15 @@ function initEvents() {
           return;
         }
 
+        const map = STATE.map;
+        const zoom = map.getZoom()
+        const minZoom = SELECT_MAP_MIN_ZOOM
+
         // Show selection.
-        STATE.map.setZoom(SELECT_MAP_MIN_ZOOM + SELECT_MAP_MIN_ZOOM_TOLERANCE)
+        if (zoom < minZoom) {
+          map.setZoom(minZoom)
+        }
+
         setState({selectableFor: id})
         dispatchFindNearbyNodes(id)
     }
@@ -363,26 +395,20 @@ function initEvents() {
 
     const from = e.target.elements.from.value
     const to = e.target.elements.to.value;
-
-    const params = new URLSearchParams({from, to}).toString()
-    const state = Object.fromEntries(Object.entries(STATE).filter(([k, v]) => k !== "map"))
-    history.pushState(state, '', `?${params}`)
-
-    // Avoid conflicts with node selection.
-    setState({selectableFor: null, selectableNodes: []});
+    setState({from, to, selectableFor: null, selectableNodes: []});
 
     dispatchCalculateRoute(from, to);
   }
 
 
-  const handleGraphNodeSelect = (e) => {
-    const graphNodeId = e.detail.graphNodeId
+  const handleLinkSelect = (e) => {
+    const graphNodeId = e.detail.graphNodeId;
     setState({activePathIndex: graphNodeId, selectableFor: null, selectableNodes: []})
   }
 
   document.addEventListener("click", handleClick);
   document.addEventListener("submit", handleSubmit);
-  document.addEventListener("graphNodeSelect", handleGraphNodeSelect);
+  document.addEventListener("linkSelect", handleLinkSelect);
 }
 
 /**

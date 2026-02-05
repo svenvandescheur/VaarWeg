@@ -52,7 +52,7 @@ class plan extends HTMLElement {
       if (!button) return;
 
       const handler = () => {
-        this.dispatchEvent(new CustomEvent("graphNodeSelect", {
+        this.dispatchEvent(new CustomEvent("linkSelect", {
           detail: {graphNodeId: parseInt(graphNodeIndex, 10)},
           bubbles: true,
           composed: true
