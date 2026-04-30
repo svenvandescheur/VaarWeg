@@ -2,7 +2,7 @@
 import {createReactiveApp, STATE} from "./lib/reactive.module.js"
 import "./components/index.js"
 
-const SELECT_MAP_MIN_ZOOM = 14;
+const SELECT_MAP_MIN_ZOOM = 15;
 
 const BASE_STATE = Object.freeze({
   activePathIndex: null,
@@ -241,8 +241,9 @@ function render(state) {
     for (let node of selectableNodes) {
       const link = node.link;
       const coords = node.position.join(",")
-      const title = `${link}@${coords}`
-      L.marker(node.position.reverse(), {title}).addTo(map).on("click", () => handleNodeMarkerSelect(state, node))
+      // const title = `${link}@${coords}`
+      const title = JSON.stringify(node, undefined, 2)
+      const marker = L.marker(node.position.reverse(), {title}).addTo(map).on("click", () => handleNodeMarkerSelect(state, node))
     }
   }
 
