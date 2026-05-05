@@ -11,20 +11,6 @@ from typing import Tuple, TypedDict, Any, Literal, Union, List, TypeAlias, Optio
 from scipy.spatial import KDTree
 from tqdm import tqdm
 
-"""
-# KNOWN ISSUES:
-
-## Some paths may be incorrectly following acutal map:
-
-Possible cause(s):
- - Unwanted UNKNOWN links, break op neighbor detection across LineString.
- - Missing map data makes filtering unwanted data difficult.
- 
-Possible solution(s):
- - Check for surrounding nodes for links with no name, if resolved, ignore this node.
- - This should be tested agains known difficult paths. 
-"""
-
 canal_id_gen = count()
 
 GeoJSONWaterway = Literal[
@@ -464,20 +450,35 @@ def feature_to_graph_nodes(feature_collection: GeoJSONFeatureCollection, feature
         if not current_coord:
             continue
 
+        # Use rounded current_coord for KDTree lookup and mapping
+        rounded_current = round_coord(current_coord)
+
+        neighbor_pairs = []  # (neighbor_id, squared_distance)
+        seen = set()
+
+        def add_pair(coord, canal):
+            nid = coord_to_id(coord, canal)
+            if nid in seen:
+                return
+            seen.add(nid)
+
+            dx = coord[0] - rounded_current[0]
+            dy = coord[1] - rounded_current[1]
+            dist2 = dx * dx + dy * dy
+
+            neighbor_pairs.append((nid, dist2))
+
         # previous_coord is None at the start (avoid pos_list[-1] bug)
         previous_coord: GeoJSONCoordinate | None = pos_list[i - 1] if i > 0 else None
         next_coord: GeoJSONCoordinate | None = pos_list[i + 1] if i + 1 < len(pos_list) else None
 
         # Only add the next coordinate as a neighbor if the next coordinate exists.
         if next_coord:
-            neighbors.add(coord_to_id(next_coord, feature))
+            add_pair(next_coord, feature)
 
         # Only add previous coordinate as a neighbor if not oneway and previous exists.
         if not oneway and previous_coord:
-            neighbors.add(coord_to_id(previous_coord, feature))
-
-        # Use rounded current_coord for KDTree lookup and mapping
-        rounded_current = round_coord(current_coord)
+            add_pair(previous_coord, feature)
 
         nearby_indices = kdtree.query_ball_point(rounded_current, distance_tolerance)
         for idx in nearby_indices:
@@ -489,7 +490,11 @@ def feature_to_graph_nodes(feature_collection: GeoJSONFeatureCollection, feature
                     continue
                 # Note: use the original other_canal object when generating ids
                 # but pass a coordinate that matches coord_to_id rounding expectations
-                neighbors.add(coord_to_id(other_coord, other_canal))
+                add_pair(other_coord, other_canal)
+
+        # Order
+        neighbor_pairs.sort(key=lambda x: x[1])
+        ordered_neighbors = [nid for nid, _ in neighbor_pairs]
 
         # Build graph node
         node_id = coord_to_id(current_coord, feature)
@@ -497,7 +502,7 @@ def feature_to_graph_nodes(feature_collection: GeoJSONFeatureCollection, feature
             id=node_id,
             link=get_feature_name(feature),
             position=rounded_current,
-            neighbors=list(neighbors),
+            neighbors=ordered_neighbors,
         )
         graph_nodes.append(graph_node)
     return graph_nodes
